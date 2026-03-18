@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Mono:wght@400;500;700&family=Lora:ital@0;1&display=swap');
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #04040a; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #06060d; }
+::-webkit-scrollbar-thumb { background: #1e1c2a; border-radius: 3px; }
+
+/* ── Animations ── */
+@keyframes fIn    { from { opacity: 0 }                          to { opacity: 1 } }
+@keyframes sIn    { from { opacity: 0; transform: scale(.93) }   to { opacity: 1; transform: scale(1) } }
+@keyframes fSlide { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes spin   { to { transform: rotate(360deg) } }
+
+/* ── Nav ── */
+.nav {
+  height: 56px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 clamp(20px, 5vw, 72px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(4,4,10,.92);
+  backdrop-filter: blur(18px);
+  width: 10%;
+}
+
+.nav-inner {
+  width: 100%;
+  max-width: 1320px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Dodane: zapewnia wyrównanie do lewej */
+  margin-right: auto;
+}
+
+.nav-logo {
+  width: 28px; 
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #E8C547, #9b7e1a);
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f0ece0;
+  /* Dodane: zapobiega zawijaniu tekstu */
+  white-space: nowrap;
+}
+
+.nav-links {
+  display: flex;
+  gap: 28px;
+  /* Dodane: odstęp od nazwy */
+  margin-left: 40px;
+}
+
+.nav-link {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.3);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color .2s;
+  /* Dodane: dla lepszej czytelności */
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+}
+
+.nav-link:hover { 
+  color: rgba(255,255,255,.65); 
+}
+
+.nav-link--active {
+  color: #E8C547;
+}
