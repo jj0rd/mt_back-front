@@ -1,6 +1,8 @@
 package com.mt.project.Controller;
 
 import com.mt.project.Dto.MovieFuzzyDiscoverRequest;
+import com.mt.project.Service.KeywordService;
+import com.mt.project.Service.PersonService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -26,34 +28,72 @@ public class MovieFuzzyController {
 
     @Autowired
     private RestTemplate restTemplate;
+    @Autowired
+    private KeywordService keywordService;
+    @Autowired
+    private PersonService personService;
 
     @PostMapping("/discover/fuzzy")
     public ResponseEntity<?> discoverFuzzy(@RequestBody MovieFuzzyDiscoverRequest request) {
 
         //  Szerokie zapytanie do discover (bez keywords i people)
         StringBuilder url = new StringBuilder(tmdbApiUrl + "/discover/movie?api_key=" + tmdbApiKey);
-        url.append("&language=").append(request.getLanguage() != null ? request.getLanguage() : "pl-PL");
+        url.append("&language=").append(request.getLanguage() != null ? request.getLanguage() : "en-US");
         url.append("&include_adult=false");
 
         if (request.getGenre() != null && !request.getGenre().isEmpty()) {
-            String genres = request.getGenre().stream().map(String::valueOf).collect(Collectors.joining(","));
+            String genres = request.getGenre().stream().map(String::valueOf).collect(Collectors.joining("|"));
             url.append("&with_genres=").append(genres);
         }
 
-        if (request.getYearFrom() != null) {
-            url.append("&primary_release_date.gte=").append(request.getYearFrom()).append("-01-01");
+//        if (request.getYearFrom() != null) {
+//            url.append("&primary_release_date.gte=").append(request.getYearFrom()).append("-01-01");
+//        }
+//        if (request.getYearTo() != null) {
+//            url.append("&primary_release_date.lte=").append(request.getYearTo()).append("-12-31");
+//        }
+//        if (request.getRating() != null) {
+//            url.append("&vote_average.gte=").append(request.getRating());
+//        }
+        if (request.getDescription() != null && !request.getDescription().isBlank()) {
+            List<Integer> extractedKeywordIds = keywordService.extractKeywordIds(request.getDescription());
+
+            // merge z istniejącymi keywordami (jeśli ktoś poda ręcznie)
+            Set<Integer> allKeywords = new HashSet<>();
+            if (request.getKeywords() != null) {
+                allKeywords.addAll(request.getKeywords());
+            }
+            allKeywords.addAll(extractedKeywordIds);
+
+            request.setKeywords(new ArrayList<>(allKeywords));
         }
-        if (request.getYearTo() != null) {
-            url.append("&primary_release_date.lte=").append(request.getYearTo()).append("-12-31");
-        }
-        if (request.getRating() != null) {
-            url.append("&vote_average.gte=").append(request.getRating());
+        if (request.getKeywords() != null && !request.getKeywords().isEmpty()) {
+            String keywords = request.getKeywords().stream().map(String::valueOf).collect(Collectors.joining("|"));
+            url.append("&with_keywords=").append(keywords);
         }
 
-        Map<String, Object> result = restTemplate.getForObject(url.toString(), Map.class);
-        List<Map<String, Object>> movies = (List<Map<String, Object>>) result.get("results");
+        // 🔹 Zamiana nazwisk osób na ID
+        if (request.getPeopleNames() != null && !request.getPeopleNames().isEmpty()) {
+            List<Integer> peopleIds = personService.getPersonIdsByNames(request.getPeopleNames());
+            request.setPeople(peopleIds);
+        }
 
-        List<Map<String, Object>> rankedMovies = movies.stream().map(movie -> {
+
+
+        // 🔹 Paginacja - pobieramy np. do 5 stron
+        List<Map<String, Object>> allMovies = new ArrayList<>();
+        int maxPages = 5;
+        for (int page = 1; page <= maxPages; page++) {
+            String pagedUrl = url.toString() + "&page=" + page;
+            Map<String, Object> result = restTemplate.getForObject(pagedUrl, Map.class);
+            if (result == null || !result.containsKey("results")) break;
+            List<Map<String, Object>> moviesPage = (List<Map<String, Object>>) result.get("results");
+            if (moviesPage.isEmpty()) break;
+            allMovies.addAll(moviesPage);
+        }
+
+        // 🔹 Ranking filmów
+        List<Map<String, Object>> rankedMovies = allMovies.stream().map(movie -> {
                     int score = 0;
 
                     // Gatunki
@@ -62,14 +102,14 @@ public class MovieFuzzyController {
                         score += movieGenres.stream().filter(request.getGenre()::contains).count();
                     }
 
-                    // Pobierz szczegóły filmu z credits i keywords
+                    // Szczegóły filmu: credits + keywords
                     String movieId = movie.get("id").toString();
                     String detailUrl = tmdbApiUrl + "/movie/" + movieId +
                             "?api_key=" + tmdbApiKey +
                             "&append_to_response=credits,keywords";
                     Map<String, Object> details = restTemplate.getForObject(detailUrl, Map.class);
 
-                    // Keywords
+                    // Keywordy
                     if (request.getKeywords() != null && !request.getKeywords().isEmpty() && details.containsKey("keywords")) {
                         Map<String, Object> keywordsMap = (Map<String, Object>) details.get("keywords");
                         List<Map<String, Object>> movieKeywords = (List<Map<String, Object>>) keywordsMap.get("keywords");
@@ -100,10 +140,13 @@ public class MovieFuzzyController {
                         movie.put("peopleIds", matchedPeopleIds);
                     }
 
-                    // Rok (dla pewności)
-                    if (request.getYearFrom() != null && request.getYearTo() != null && movie.get("release_date") != null) {
-                        int year = Integer.parseInt(((String) movie.get("release_date")).substring(0, 4));
-                        if (year >= request.getYearFrom() && year <= request.getYearTo()) score++;
+                    // Rok
+                    if (request.getYearFrom() != null && request.getYearTo() != null) {
+                        String releaseDate = (String) movie.get("release_date");
+                        if (releaseDate != null && releaseDate.length() >= 4) {
+                            int year = Integer.parseInt(releaseDate.substring(0, 4));
+                            if (year >= request.getYearFrom() && year <= request.getYearTo()) score++;
+                        }
                     }
 
                     // Rating
@@ -114,8 +157,7 @@ public class MovieFuzzyController {
 
                     movie.put("score", score);
                     return movie;
-                })
-                .sorted((m1, m2) -> Integer.compare((Integer) m2.get("score"), (Integer) m1.get("score")))
+                }).sorted((m1, m2) -> Integer.compare((Integer) m2.get("score"), (Integer) m1.get("score")))
                 .toList();
 
         return ResponseEntity.ok(Map.of(

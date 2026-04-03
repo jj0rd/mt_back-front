@@ -16,4 +16,5 @@ public class ProjectApplication {
     public RestTemplate restTemplate() {
         return new RestTemplate();
     }
+
 }

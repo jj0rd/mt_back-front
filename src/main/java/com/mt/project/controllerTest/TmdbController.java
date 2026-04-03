@@ -26,7 +26,7 @@ public class TmdbController {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @GetMapping("/search/{title}")
-    public ResponseEntity<?> searchMovie(@PathVariable String title,@RequestParam(value = "lang", defaultValue = "pl-PL") String lang) {
+    public ResponseEntity<?> searchMovie(@PathVariable String title,@RequestParam(value = "lang", defaultValue = "en-US") String lang) {
         if (title == null || title.trim().isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(Collections.singletonMap("Error", "Title cannot be empty"));
@@ -56,7 +56,7 @@ public class TmdbController {
         StringBuilder url = new StringBuilder(tmdbApiUrl + "/discover/movie?api_key=" + tmdbApiKey);
 
         url.append("&language=").append(
-                request.getLanguage() != null ? request.getLanguage() : "pl-PL"
+                request.getLanguage() != null ? request.getLanguage() : "en-US"
         );
 
         if (request.getGenre() != null && !request.getGenre().isEmpty()) {
@@ -112,7 +112,7 @@ public class TmdbController {
     @GetMapping("/genres")
     public ResponseEntity<?> getGenres() {
 
-        String url = tmdbApiUrl + "/genre/movie/list?api_key=" + tmdbApiKey + "&language=pl-PL";
+        String url = tmdbApiUrl + "/genre/movie/list?api_key=" + tmdbApiKey + "&language=en-US";
 
         Map<String, Object> result = restTemplate.getForObject(url, Map.class);
 

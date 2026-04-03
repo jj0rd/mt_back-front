@@ -11,6 +11,25 @@ public class MovieFuzzyDiscoverRequest {
     private Integer yearTo;
     private Double rating;
 
+    private String description;
+    private List<String> peopleNames;
+
+    public List<String> getPeopleNames() {
+        return peopleNames;
+    }
+
+    public void setPeopleNames(List<String> peopleNames) {
+        this.peopleNames = peopleNames;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
     public String getLanguage() {
         return language;
     }

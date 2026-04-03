@@ -78,7 +78,7 @@ function Modal({ movie, onClose }) {
 
             <StarBar value={movie.vote_average} />
 
-            <p className="modal-overview">{movie.overview || "Brak opisu."}</p>
+            <p className="modal-overview">{movie.overview || "No description available."}</p>
           </div>
         </div>
       </div>
@@ -196,10 +196,10 @@ export default function MovieSearch() {
         <div className="hero">
           <p className="hero-eyebrow">powered by TMDB</p>
           <h1 className="hero-title">
-            Znajdź swój<br />
-            <em>następny film</em>
+            Find your<br />
+            <em>next movie</em>
           </h1>
-          <p className="hero-sub">Wpisz tytuł — reszta należy do Ciebie</p>
+          <p className="hero-sub">Type a title — the rest is up to you</p>
 
           {/* SEARCH BAR */}
           <div className="search-wrap">
@@ -216,7 +216,7 @@ export default function MovieSearch() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="np. Interstellar, Nolan, Parasite…"
+                placeholder="e.g. Interstellar, Nolan, Parasite…"
               />
 
               {query && (
@@ -230,7 +230,7 @@ export default function MovieSearch() {
               >
                 {status === "loading"
                   ? <div className="spinner" />
-                  : "Szukaj"
+                  : "Search"
                 }
               </button>
             </div>
@@ -240,17 +240,17 @@ export default function MovieSearch() {
         {/* RESULTS COUNT */}
         {status === "done" && (
           <p className="results-count">
-            Znaleziono <span>{total}</span> wyników dla „{query}"
+            Found  <span>{total}</span> results for „{query}"
           </p>
         )}
 
         {/* ERROR */}
         {status === "error" && (
           <div className="error-box">
-            <p className="error-title">⚠ Błąd zapytania</p>
+            <p className="error-title">⚠ Request error</p>
             <p className="error-msg">{errorMsg}</p>
             <p className="error-hint">
-              Upewnij się, że backend działa pod adresem{" "}
+              Make sure the backend is running at{" "}
               <code>{API_BASE}</code>
             </p>
           </div>
@@ -258,7 +258,7 @@ export default function MovieSearch() {
 
         {/* IDLE */}
         {status === "idle" && (
-          <p className="idle-hint">↑ WPISZ TYTUŁ I NACIŚNIJ ENTER</p>
+          <p className="idle-hint">↑ TYPE A TITLE AND PRESS ENTER</p>
         )}
 
         {/* EMPTY */}
@@ -269,8 +269,8 @@ export default function MovieSearch() {
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
               </svg>
             </div>
-            <h3 className="empty-title">Brak wyników</h3>
-            <p className="empty-sub">Spróbuj innej frazy</p>
+            <h3 className="empty-title">No results</h3>
+            <p className="empty-sub">Try a different phrase</p>
           </div>
         )}
 

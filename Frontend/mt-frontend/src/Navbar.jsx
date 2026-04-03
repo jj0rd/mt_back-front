@@ -22,7 +22,7 @@ export default function Navbar() {
               isActive ? 'nav-link nav-link--active' : 'nav-link'
             }
           >
-            Wyszukaj
+            Search
           </NavLink>
           <NavLink 
             to="/recommend" 
@@ -30,7 +30,15 @@ export default function Navbar() {
               isActive ? 'nav-link nav-link--active' : 'nav-link'
             }
           >
-            Rekomendacje
+            Recommend
+          </NavLink>
+          <NavLink 
+            to="/from2recommend" 
+            className={({ isActive }) => 
+              isActive ? 'nav-link nav-link--active' : 'nav-link'
+            }
+          >
+            Recommend from 2
           </NavLink>
         </div>
       </div>
