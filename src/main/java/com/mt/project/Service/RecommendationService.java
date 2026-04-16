@@ -108,52 +108,134 @@ public class RecommendationService {
             allMovies.addAll(moviesPage);
         }
 
-        // 5️⃣ Ranking wg wspólnych elementów + filtrowanie, aby nie pokazywać filmów wejściowych
+        // 6️⃣ ID wejściowe (set dla szybkiego filtrowania)
+        Set<Integer> inputIds = new HashSet<>(movieIds);
+
+        // 7️⃣ Ranking
         List<Map<String, Object>> rankedMovies = allMovies.stream()
-                // 🔹 Pomijamy filmy, które były podane jako wejściowe
-                .filter(m -> !movieIds.contains((Integer) m.get("id")))
+                .filter(m -> !inputIds.contains((Integer) m.get("id")))
                 .map(movie -> {
+
                     Map<String, Object> details = getMovieDetails((Integer) movie.get("id"));
                     if (details == null) return null;
 
                     int score = 0;
 
-                    List<Integer> movieGenres = (List<Integer>) details.getOrDefault("genre_ids", Collections.emptyList());
-                    List<Integer> movieKeywordIds = (List<Integer>) details.getOrDefault("keywordIds", Collections.emptyList());
-                    Map<String, Object> credits = (Map<String, Object>) details.getOrDefault("credits", Collections.emptyMap());
-                    List<Integer> castIds = ((List<Map<String, Object>>) credits.getOrDefault("cast", Collections.emptyList()))
-                            .stream().map(c -> (Integer) c.get("id")).toList();
-                    List<Integer> crewIds = ((List<Map<String, Object>>) credits.getOrDefault("crew", Collections.emptyList()))
-                            .stream().map(c -> (Integer) c.get("id")).toList();
+                    List<Integer> movieGenres =
+                            (List<Integer>) details.getOrDefault("genre_ids", Collections.emptyList());
 
+                    List<Integer> movieKeywordIds =
+                            (List<Integer>) details.getOrDefault("keywordIds", Collections.emptyList());
+
+                    Map<String, Object> credits =
+                            (Map<String, Object>) details.getOrDefault("credits", Collections.emptyMap());
+
+                    List<Integer> castIds =
+                            ((List<Map<String, Object>>) credits.getOrDefault("cast", Collections.emptyList()))
+                                    .stream()
+                                    .map(c -> (Integer) c.get("id"))
+                                    .toList();
+
+                    List<Integer> crewIds =
+                            ((List<Map<String, Object>>) credits.getOrDefault("crew", Collections.emptyList()))
+                                    .stream()
+                                    .map(c -> (Integer) c.get("id"))
+                                    .toList();
+
+                    // 🔥 SCORE — BONUS ZA WSPÓLNE ELEMENTY (×2 jeśli pasuje do wielu inputów)
                     for (Map<String, Object> input : inputMoviesDetails) {
-                        List<Integer> inputGenres = (List<Integer>) input.getOrDefault("genre_ids", Collections.emptyList());
-                        List<Integer> inputKeywords = (List<Integer>) input.getOrDefault("keywordIds", Collections.emptyList());
-                        Map<String, Object> inputCredits = (Map<String, Object>) input.getOrDefault("credits", Collections.emptyMap());
-                        List<Integer> inputCast = ((List<Map<String, Object>>) inputCredits.getOrDefault("cast", Collections.emptyList()))
-                                .stream().map(c -> (Integer) c.get("id")).toList();
-                        List<Integer> inputCrew = ((List<Map<String, Object>>) inputCredits.getOrDefault("crew", Collections.emptyList()))
-                                .stream().map(c -> (Integer) c.get("id")).toList();
 
-                        score += movieGenres.stream().filter(inputGenres::contains).count();
-                        score += movieKeywordIds.stream().filter(inputKeywords::contains).count();
-                        score += castIds.stream().filter(inputCast::contains).count();
-                        score += crewIds.stream().filter(inputCrew::contains).count();
+                        List<Integer> inputGenres =
+                                (List<Integer>) input.getOrDefault("genre_ids", Collections.emptyList());
+
+                        List<Integer> inputKeywords =
+                                (List<Integer>) input.getOrDefault("keywordIds", Collections.emptyList());
+
+                        Map<String, Object> inputCredits =
+                                (Map<String, Object>) input.getOrDefault("credits", Collections.emptyMap());
+
+                        List<Integer> inputCast =
+                                ((List<Map<String, Object>>) inputCredits.getOrDefault("cast", Collections.emptyList()))
+                                        .stream()
+                                        .map(c -> (Integer) c.get("id"))
+                                        .toList();
+
+                        List<Integer> inputCrew =
+                                ((List<Map<String, Object>>) inputCredits.getOrDefault("crew", Collections.emptyList()))
+                                        .stream()
+                                        .map(c -> (Integer) c.get("id"))
+                                        .toList();
+
+                        // GENRES
+                        for (Integer g : movieGenres) {
+                            if (inputGenres.contains(g)) {
+                                score += (isSharedAcrossAll(g, inputMoviesDetails, "genre_ids") ? 2 : 1);
+                            }
+                        }
+
+                        // KEYWORDS
+                        for (Integer k : movieKeywordIds) {
+                            if (inputKeywords.contains(k)) {
+                                score += (isSharedAcrossAll(k, inputMoviesDetails, "keywordIds") ? 2 : 1);
+                            }
+                        }
+
+                        // CAST
+                        for (Integer c : castIds) {
+                            if (inputCast.contains(c)) {
+                                score += (isSharedAcrossAllCredits(c, inputMoviesDetails, "cast") ? 2 : 1);
+                            }
+                        }
+
+                        // CREW
+                        for (Integer c : crewIds) {
+                            if (inputCrew.contains(c)) {
+                                score += (isSharedAcrossAllCredits(c, inputMoviesDetails, "crew") ? 2 : 1);
+                            }
+                        }
                     }
 
                     movie.put("score", score);
                     movie.put("genre_ids", movieGenres);
                     movie.put("keywordIds", movieKeywordIds);
-                    movie.put("peopleIds", castIds.stream().limit(5).toList()); // główni aktorzy
+                    movie.put("peopleIds", castIds.stream().limit(5).toList());
                     movie.put("release_date", movie.get("release_date"));
                     movie.put("vote_average", movie.get("vote_average"));
 
                     return movie;
                 })
                 .filter(Objects::nonNull)
-                .sorted((m1, m2) -> Integer.compare((Integer) m2.get("score"), (Integer) m1.get("score")))
+                .sorted((m1, m2) ->
+                        Integer.compare((Integer) m2.get("score"), (Integer) m1.get("score")))
                 .toList();
 
         return rankedMovies;
+    }
+    private boolean isSharedAcrossAll(Integer id, List<Map<String, Object>> inputs, String key) {
+        for (Map<String, Object> input : inputs) {
+            List<Integer> list =
+                    (List<Integer>) input.getOrDefault(key, Collections.emptyList());
+
+            if (!list.contains(id)) return false;
+        }
+        return true;
+    }
+
+    private boolean isSharedAcrossAllCredits(Integer id, List<Map<String, Object>> inputs, String type) {
+        for (Map<String, Object> input : inputs) {
+
+            Map<String, Object> credits =
+                    (Map<String, Object>) input.getOrDefault("credits", Collections.emptyMap());
+
+            List<Map<String, Object>> list =
+                    (List<Map<String, Object>>) credits.getOrDefault(type, Collections.emptyList());
+
+            List<Integer> ids = list.stream()
+                    .map(c -> (Integer) c.get("id"))
+                    .toList();
+
+            if (!ids.contains(id)) return false;
+        }
+        return true;
     }
 }
