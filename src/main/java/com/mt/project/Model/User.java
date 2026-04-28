@@ -1,9 +1,8 @@
 package com.mt.project.Model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
+
+import java.util.List;
 
 @Entity
 public class User {
@@ -15,6 +14,9 @@ public class User {
     private String surname;
     private String email;
     private String password;
+
+    @OneToMany(mappedBy = "user")
+    private List<UserMovieInteraction> interactions;
 
     // Konstruktor z ID (rzadko używany)
     public User(Integer id, String name, String surname, String email, String password) {

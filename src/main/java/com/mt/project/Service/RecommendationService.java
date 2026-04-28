@@ -142,7 +142,7 @@ public class RecommendationService {
                                     .map(c -> (Integer) c.get("id"))
                                     .toList();
 
-                    // 🔥 SCORE — BONUS ZA WSPÓLNE ELEMENTY (×2 jeśli pasuje do wielu inputów)
+                    //  SCORE — BONUS ZA WSPÓLNE ELEMENTY (×2 jeśli pasuje do wielu inputów)
                     for (Map<String, Object> input : inputMoviesDetails) {
 
                         List<Integer> inputGenres =

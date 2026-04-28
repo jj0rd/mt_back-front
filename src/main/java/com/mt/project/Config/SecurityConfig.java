@@ -45,24 +45,9 @@ public class SecurityConfig {
                                 "/login",
                                 "/register",
                                 "/logout",
-                                "/csrf-token",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/getVideo/**",
-                                "/2fa/verify",
-                                "/ws/**", // WebSocket endpoint
-                                "/ws", // Główny endpoint
-                                "/ws/info", // SockJS info endpoint
-                                "/ws/websocket", // WebSocket transport
-                                "/ws/xhr_streaming", // XHR streaming transport
-                                "/ws/xhr_send", // XHR send transport
-                                "/ws/xhr", // XHR transport
-                                "/ws/jsonp", // JSONP transport
-                                "/ws/jsonp_send", // JSONP send transport
-                                "/ws/eventsource", // EventSource transport
-                                "/ws/htmlfile", // HtmlFile transport
-                                "/sockjs-node/**" // SockJS może używać tego
+                                "/api/**",
+                                "/interactions/**",
+                                "/similar/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -88,6 +73,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

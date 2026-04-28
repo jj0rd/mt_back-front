@@ -1,7 +1,9 @@
 package com.mt.project.Controller;
 
 import com.mt.project.Dto.MovieRecommendationRequest;
+import com.mt.project.Model.Movie;
 import com.mt.project.Service.RecommendationService;
+import com.mt.project.Service.UserBasedLuceneRecommendationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,9 +15,11 @@ import java.util.Map;
 @RequestMapping("/api")
 public class MovieRecommendationController {
     private final RecommendationService recommendationService;
+    private final UserBasedLuceneRecommendationService luceneRecommendationService;
 
-    public MovieRecommendationController(RecommendationService recommendationService) {
+    public MovieRecommendationController(RecommendationService recommendationService,UserBasedLuceneRecommendationService luceneRecommendationService) {
         this.recommendationService = recommendationService;
+        this.luceneRecommendationService = luceneRecommendationService;
     }
 
     @PostMapping("/similar")
@@ -34,4 +38,12 @@ public class MovieRecommendationController {
                 "movies", movies
         ));
     }
+    // GET /api/recommendations/user/1
+    @GetMapping("/luceneRecommend/{userId}")
+    public List<Map<String, Object>> getRecommendations(@PathVariable Integer userId) {
+        return luceneRecommendationService.recommend(userId);
+    }
+
+    
+
 }
