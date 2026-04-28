@@ -1,5 +1,7 @@
 package com.mt.project;
 
+import com.mt.project.Service.CandidateProviderService;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -17,4 +19,10 @@ public class ProjectApplication {
         return new RestTemplate();
     }
 
+	@Bean
+	CommandLineRunner init(CandidateProviderService candidateService) {
+		return args -> {
+			candidateService.loadCandidatesToIndex();
+		};
+	}
 }

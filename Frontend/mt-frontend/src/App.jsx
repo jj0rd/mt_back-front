@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import MovieSearch from './MovieSearch'
 import MovieRecommend from './MovieRecommend'
 import MovieSimilar from './MovieSimilar'
+import Login from './Login'
+import Register from './Register'
 
 function App() {
   return (
@@ -10,6 +12,8 @@ function App() {
         <Route path="/" element={<MovieSearch />} />
         <Route path="/recommend" element={<MovieRecommend />} />
         <Route path="/from2recommend" element={<MovieSimilar />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
       </Routes>
     </Router>
   )

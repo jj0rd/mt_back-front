@@ -40,6 +40,14 @@ export default function Navbar() {
           >
             Recommend from 2
           </NavLink>
+           <NavLink 
+            to="/login" 
+            className={({ isActive }) => 
+              isActive ? 'nav-link nav-link--active' : 'nav-link'
+            }
+          >
+            Login
+          </NavLink>
         </div>
       </div>
     </nav>

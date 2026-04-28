@@ -1,5 +1,6 @@
 package com.mt.project.Controller;
 
+import com.mt.project.Dto.MovieDto;
 import com.mt.project.Dto.MovieRecommendationRequest;
 import com.mt.project.Model.Movie;
 import com.mt.project.Service.RecommendationService;
@@ -40,7 +41,7 @@ public class MovieRecommendationController {
     }
     // GET /api/recommendations/user/1
     @GetMapping("/luceneRecommend/{userId}")
-    public List<Map<String, Object>> getRecommendations(@PathVariable Integer userId) {
+    public List<MovieDto> getRecommendations(@PathVariable Integer userId) {
         return luceneRecommendationService.recommend(userId);
     }
 

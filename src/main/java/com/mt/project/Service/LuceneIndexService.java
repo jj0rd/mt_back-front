@@ -2,6 +2,7 @@ package com.mt.project.Service;
 
 import com.mt.project.Model.Movie;
 import com.mt.project.Repository.MovieRepository;
+import jakarta.annotation.PreDestroy;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -9,6 +10,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.springframework.stereotype.Service;
 
@@ -20,69 +22,66 @@ import java.util.Map;
 public class LuceneIndexService {
     private final Directory directory;
     private final StandardAnalyzer analyzer;
-    private final MovieRepository movieRepository;
     private final TmdbService tmdbService;
     private final FeatureExtractionService featureExtractionService;
-    private final IndexWriter writer;
 
-    public LuceneIndexService(Directory directory, StandardAnalyzer analyzer,
-                              MovieRepository movieRepository,TmdbService tmdbService,
+
+    public LuceneIndexService(Directory directory, StandardAnalyzer analyzer, TmdbService tmdbService,
                               FeatureExtractionService featureExtractionService) {
         this.directory = directory;
         this.analyzer = analyzer;
-        this.movieRepository = movieRepository;
         this.tmdbService = tmdbService;
         this.featureExtractionService = featureExtractionService;
-
-        try {
-            IndexWriterConfig config = new IndexWriterConfig(analyzer);
-            this.writer = new IndexWriter(directory, config);
-        } catch (Exception e) {
-            throw new RuntimeException("Cannot create Lucene IndexWriter", e);
-        }
     }
 
-    public void indexMovie(Movie movie, String content) {
-
-        try {
-            Document doc = new Document();
-
-            doc.add(new StringField("id", movie.getTmdbId().toString(), Field.Store.YES));
-            doc.add(new TextField("content", content, Field.Store.NO));
-
-            writer.addDocument(doc);
-
-            System.out.println("INDEXING MOVIE: " + movie.getTmdbId());
-
-        } catch (IOException e) {
-            throw new RuntimeException("Lucene indexing failed", e);
-        }
+    private IndexWriter createWriter() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig(analyzer);
+        return new IndexWriter(directory, config);
     }
-    public void rebuildIndex() {
 
-        try {
-            writer.deleteAll();
 
-            List<Movie> movies = movieRepository.findAll();
+    public void indexTmdbMovies(List<Map<String, Object>> movies) {
 
-            for (Movie movie : movies) {
+        try (IndexWriter writer = createWriter()) {
 
-                Map<String, Object> tmdb = tmdbService.getMovie(movie.getTmdbId());
-                if (tmdb == null) continue;
+            for (Map<String, Object> movie : movies) {
+
+                Integer tmdbId = (Integer) movie.get("id");
+
+                Map<String, Object> details = tmdbService.getMovie(tmdbId);
+                if (details == null) continue;
 
                 List<String> features =
-                        featureExtractionService.extractFeaturesFromTmdb(tmdb);
+                        featureExtractionService.extractFeaturesFromTmdb(details);
 
                 String content = String.join(" ", features);
 
-                indexMovie(movie, content);
+                Document doc = new Document();
+                doc.add(new StringField("id", tmdbId.toString(), Field.Store.YES));
+                doc.add(new TextField("content", content, Field.Store.NO));
+
+                writer.updateDocument(
+                        new Term("id", tmdbId.toString()),
+                        doc
+                );
             }
 
-            writer.commit(); //  TYLKO RAZ
-            writer.close();  //  TYLKO RAZ
+            writer.commit();
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
+
+    public void addDocument(Document doc) {
+
+        try (IndexWriter writer = createWriter()) {
+            writer.addDocument(doc);
+            writer.commit();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
 }

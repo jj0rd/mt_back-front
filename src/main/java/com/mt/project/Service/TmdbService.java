@@ -8,6 +8,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class TmdbService {
@@ -81,4 +82,25 @@ public class TmdbService {
         return movie;
     }
 
+    public List<Map<String, Object>> getPopularMovies() {
+        String url = tmdbApiUrl + "/movie/popular?api_key=" + tmdbApiKey;
+        Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+
+        return (List<Map<String, Object>>) response.get("results");
+    }
+
+    public Map<Integer, Map<String, Object>> getMoviesBatch(List<Integer> ids) {
+        return ids.parallelStream()
+                .collect(Collectors.toMap(
+                        id -> id,
+                        id -> {
+                            try {
+                                return getMovie(id);
+                            } catch (Exception e) {
+                                return null;
+                            }
+                        },
+                        (existing, replacement) -> existing
+                ));
+    }
 }
