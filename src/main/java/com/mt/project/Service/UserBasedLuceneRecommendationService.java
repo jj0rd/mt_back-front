@@ -5,6 +5,10 @@ import com.mt.project.Model.Movie;
 import com.mt.project.Model.UserMovieInteraction;
 import com.mt.project.Repository.MovieRepository;
 import com.mt.project.Repository.UserMovieInteractionRepository;
+import com.mt.project.Vector.CosineSimilarity;
+import com.mt.project.Vector.FeatureVector;
+import com.mt.project.Vector.ScoredMovie;
+import com.mt.project.Vector.VectorBuilder;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -27,6 +31,8 @@ public class UserBasedLuceneRecommendationService {
 
     private final Directory luceneDirectory;
     private final StandardAnalyzer analyzer;
+    private final VectorBuilder vectorBuilder;
+    private final CosineSimilarity cosineSimilarity;
 
     public UserBasedLuceneRecommendationService(
             FeatureExtractionService featureExtractionService,
@@ -34,7 +40,9 @@ public class UserBasedLuceneRecommendationService {
             MovieRepository movieRepository,
             Directory luceneDirectory,
             StandardAnalyzer analyzer,
-            TmdbService tmdbService
+            TmdbService tmdbService,
+            VectorBuilder vectorBuilder,
+            CosineSimilarity cosineSimilarity
     ) {
         this.featureExtractionService = featureExtractionService;
         this.interactionRepository = interactionRepository;
@@ -42,6 +50,8 @@ public class UserBasedLuceneRecommendationService {
         this.luceneDirectory = luceneDirectory;
         this.analyzer = analyzer;
         this.tmdbService = tmdbService;
+        this.vectorBuilder = vectorBuilder;
+        this.cosineSimilarity = cosineSimilarity;
     }
 
     // ==============================
@@ -52,7 +62,7 @@ public class UserBasedLuceneRecommendationService {
         List<UserMovieInteraction> interactions =
                 interactionRepository.findByUserId(userId);
 
-        StringBuilder profile = new StringBuilder();
+        Map<String, Integer> weights = new HashMap<>();
 
         for (UserMovieInteraction interaction : interactions) {
 
@@ -68,12 +78,15 @@ public class UserBasedLuceneRecommendationService {
 
             int weight = Math.max(1, interaction.getRating());
 
-            profile.append(
-                    String.join(" ", features)
-            ).append(" ".repeat(weight));
+            for (String f : features) {
+                weights.merge(f.toLowerCase(), weight, Integer::sum);
+            }
         }
 
-        return profile.toString().trim().toLowerCase();
+        // 🔥 budowa query z boostem
+        return weights.entrySet().stream()
+                .map(e -> e.getKey() + "^" + e.getValue())
+                .collect(Collectors.joining(" "));
     }
 
     // ==============================
@@ -98,7 +111,7 @@ public class UserBasedLuceneRecommendationService {
             IndexSearcher searcher = new IndexSearcher(reader);
 
             QueryParser parser = new QueryParser("content", analyzer);
-            Query query = parser.parse(QueryParser.escape(userProfile));
+            Query query = parser.parse(userProfile);
 
             TopDocs results = searcher.search(query, 20);
 
@@ -124,18 +137,43 @@ public class UserBasedLuceneRecommendationService {
 
             List<MovieDto> recommendations = new ArrayList<>();
 
-            for (Integer id : candidateIds) {
+            FeatureVector userVector = buildUserVector(userId);
 
-                Map<String, Object> movieRaw = tmdbBatch.get(id);
+            List<ScoredMovie> scored = new ArrayList<>();
 
+            for (ScoreDoc scoreDoc : results.scoreDocs) {
+
+                Document doc = searcher.doc(scoreDoc.doc);
+                Integer movieId = Integer.valueOf(doc.get("id"));
+
+                if (seenMovies.contains(movieId)) continue;
+
+                Map<String, Object> movieRaw = tmdbBatch.get(movieId);
                 if (movieRaw == null) continue;
 
-                MovieDto dto = mapToDto(movieRaw);
+                // 🔹 VECTOR filmu
+                FeatureVector movieVector =
+                        vectorBuilder.fromMovie(movieRaw);
 
-                recommendations.add(dto);
+                // 🔹 COSINE
+                double cosineScore =
+                        cosineSimilarity.compute(userVector, movieVector);
+
+                // 🔹 LUCENE
+                double luceneScore = scoreDoc.score;
+                double normalizedLucene = normalizeLucene(luceneScore);
+
+                // 🔥 FINAL SCORE
+                double finalScore = 0.7 * normalizedLucene + 0.3 * cosineScore;
+
+                scored.add(new ScoredMovie(movieRaw, finalScore));
             }
 
-            return recommendations;
+            return scored.stream()
+                    .sorted((a, b) -> Double.compare(b.getScore(), a.getScore()))
+                    .limit(20)
+                    .map(s -> mapToDto(s.getMovie()))
+                    .toList();
 
         } catch (Exception e) {
             throw new RuntimeException("Lucene recommendation failed", e);
@@ -185,5 +223,35 @@ public class UserBasedLuceneRecommendationService {
         }
 
         return dto;
+    }
+    private FeatureVector buildUserVector(Integer userId) {
+
+        List<UserMovieInteraction> interactions =
+                interactionRepository.findByUserId(userId);
+
+        Map<String, Double> map = new HashMap<>();
+
+        for (UserMovieInteraction interaction : interactions) {
+
+            Integer movieId = interaction.getMovie().getTmdbId();
+
+            Map<String, Object> movie = tmdbService.getMovie(movieId);
+            if (movie == null) continue;
+
+            List<String> features =
+                    featureExtractionService.extractFeaturesFromTmdb(movie);
+
+            double weight = Math.max(1, interaction.getRating());
+
+            for (String f : features) {
+                map.merge(f.toLowerCase(), weight, Double::sum);
+            }
+        }
+
+        return new FeatureVector(map);
+    }
+
+    private double normalizeLucene(double score) {
+        return score / (score + 1);
     }
 }
