@@ -44,7 +44,9 @@ public class MovieRecommendationController {
     public List<MovieDto> getRecommendations(@PathVariable Integer userId) {
         return luceneRecommendationService.recommend(userId);
     }
-
-    
+    @GetMapping("/to-rate/{userId}")
+    public ResponseEntity<MovieDto> getMovieToRate(@PathVariable Integer userId) {
+        return ResponseEntity.ok(luceneRecommendationService.getMovieToRate(userId));
+    }
 
 }

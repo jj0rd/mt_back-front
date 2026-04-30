@@ -254,4 +254,66 @@ public class UserBasedLuceneRecommendationService {
     private double normalizeLucene(double score) {
         return score / (score + 1);
     }
+
+    public MovieDto getMovieToRate(Integer userId) {
+
+        // 🔥 filmy już obejrzane
+        Set<Integer> seenMovies = interactionRepository.findByUserId(userId)
+                .stream()
+                .map(i -> i.getMovie().getTmdbId())
+                .collect(Collectors.toSet());
+
+        Random random = new Random();
+
+        // 🔁 próbujemy kilka razy znaleźć nieoglądany film
+        for (int attempt = 0; attempt < 20; attempt++) {
+
+            Map<String, Object> movieMap = tmdbService.getRandomTopRatedMovie();
+
+            if (movieMap == null) continue;
+
+            Integer movieId = (Integer) movieMap.get("id");
+
+            // 🚀 pomiń już oglądane
+            if (movieId != null && !seenMovies.contains(movieId)) {
+                return mapToMovieDto(movieMap);
+            }
+        }
+
+        throw new RuntimeException("Brak filmów do oceny");
+    }
+    private MovieDto mapToMovieDto(Map<String, Object> movieMap) {
+
+        MovieDto dto = new MovieDto();
+
+        dto.setId((Integer) movieMap.get("id"));
+        dto.setTitle((String) movieMap.get("title"));
+        dto.setOverview((String) movieMap.get("overview"));
+
+        // data premiery → tylko rok
+        String releaseDate = (String) movieMap.get("release_date");
+        if (releaseDate != null && releaseDate.length() >= 4) {
+            dto.setReleaseYear(releaseDate.substring(0, 4));
+        }
+
+        dto.setRating(
+                movieMap.get("vote_average") != null
+                        ? ((Number) movieMap.get("vote_average")).doubleValue()
+                        : null
+        );
+
+        // 🎬 poster URL (NOWE)
+        String posterPath = (String) movieMap.get("poster_path");
+        if (posterPath != null) {
+            dto.setPosterPath("https://image.tmdb.org/t/p/w500" + posterPath);
+        } else {
+            dto.setPosterPath(null);
+        }
+
+        // TMDB top_rated NIE zawiera gatunków i castu → ustawiamy puste
+        dto.setGenres(List.of());
+        dto.setCast(List.of());
+
+        return dto;
+    }
 }

@@ -47,7 +47,8 @@ public class SecurityConfig {
                                 "/logout",
                                 "/api/**",
                                 "/interactions/**",
-                                "/similar/**"
+                                "/similar/**",
+                                "/error"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

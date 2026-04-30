@@ -11,6 +11,15 @@ public class MovieDto {
 
     public List<String> genres;
     public List<String> cast;
+    private String posterPath;
+
+    public String getPosterPath() {
+        return posterPath;
+    }
+
+    public void setPosterPath(String posterPath) {
+        this.posterPath = posterPath;
+    }
 
     public Integer getId() {
         return id;

@@ -2,6 +2,7 @@ package com.mt.project.Controller;
 
 import com.mt.project.Dto.Login;
 import com.mt.project.Model.User;
+import com.mt.project.Model.UserPrincipal;
 import com.mt.project.Repository.UserRepository;
 import com.mt.project.Service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -110,8 +111,17 @@ public class UserController {
             HttpSession session = request.getSession(true);
             session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+
+            Map<String, Object> user = new HashMap<>();
+            user.put("id", userPrincipal.getId());
+            user.put("name", userPrincipal.getName());
+            user.put("surname", userPrincipal.getSurname());
+            user.put("email", userPrincipal.getUsername());
+
             Map<String, Object> response = new HashMap<>();
-            response.put("message", "Login successful");
+            //response.put("message", "Login successful");
+            response.put("user", user);
             return ResponseEntity.ok(response);
 
         } catch (BadCredentialsException e) {

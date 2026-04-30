@@ -28,10 +28,11 @@ export default function Login() {
         throw new Error(body.message || body.error || `HTTP ${res.status}`);
       }
 
-      // const data = await res.json();
-      // np. zapisz token: localStorage.setItem("token", data.token);
+      const data = await res.json();
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.location.href = "/rateMovie";
       setStatus("idle");
-      alert("Login successful!"); // zamień na redirect
+      //alert("Login successful!"); // zamień na redirect
     } catch (err) {
       setErrorMsg(err.message);
       setStatus("error");

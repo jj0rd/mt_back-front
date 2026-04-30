@@ -4,6 +4,7 @@ import MovieRecommend from './MovieRecommend'
 import MovieSimilar from './MovieSimilar'
 import Login from './Login'
 import Register from './Register'
+import RateMovie from './RateMovie'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/from2recommend" element={<MovieSimilar />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/rateMovie" element={<RateMovie />} />
       </Routes>
     </Router>
   )

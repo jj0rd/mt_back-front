@@ -2,12 +2,14 @@ package com.mt.project.Service;
 
 import com.mt.project.Model.Movie;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
@@ -89,6 +91,34 @@ public class TmdbService {
         return (List<Map<String, Object>>) response.get("results");
     }
 
+    public Map<String, Object> getRandomTopRatedMovie() {
+
+        Random random = new Random();
+
+        // TMDB top_rated ma wiele stron (bezpiecznie np. 1–500)
+        int randomPage = random.nextInt(20) + 1;
+
+        String url = tmdbApiUrl + "/movie/top_rated?api_key="
+                + tmdbApiKey + "&page=" + randomPage;
+
+        Map<String, Object> response =
+                restTemplate.getForObject(url, Map.class);
+
+        if (response == null || response.get("results") == null) {
+            throw new RuntimeException("TMDB response is null");
+        }
+
+        List<Map<String, Object>> results =
+                (List<Map<String, Object>>) response.get("results");
+
+        if (results.isEmpty()) {
+            throw new RuntimeException("Brak filmów na stronie: " + randomPage);
+        }
+
+        // losowy film z tej strony
+        return results.get(random.nextInt(results.size()));
+    }
+
     public Map<Integer, Map<String, Object>> getMoviesBatch(List<Integer> ids) {
         return ids.parallelStream()
                 .collect(Collectors.toMap(
@@ -103,4 +133,5 @@ public class TmdbService {
                         (existing, replacement) -> existing
                 ));
     }
+
 }
