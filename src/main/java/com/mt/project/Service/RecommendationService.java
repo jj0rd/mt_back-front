@@ -18,13 +18,19 @@ public class RecommendationService {
     @Value("${tmdb.api.key}")
     private String tmdbApiKey;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public RecommendationService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     // 🔹 Zamiana tytułu filmu na TMDb ID
     public Integer findMovieIdByTitle(String title) {
         try {
             String encoded = URLEncoder.encode(title.trim(), StandardCharsets.UTF_8);
+            System.out.println("encoded = " + encoded);
             String url = tmdbApiUrl + "/search/movie?api_key=" + tmdbApiKey + "&query=" + encoded;
+            System.out.println("url = " + url);
 
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
             if (response == null || !response.containsKey("results")) return null;
@@ -64,12 +70,14 @@ public class RecommendationService {
 
     // 🔹 Główna metoda rekomendacji
     public List<Map<String, Object>> recommendMovies(List<String> movieTitles) {
+
         // 1️⃣ Zamień tytuły → ID
         List<Integer> movieIds = movieTitles.stream()
                 .map(this::findMovieIdByTitle)
                 .filter(Objects::nonNull)
                 .toList();
         if (movieIds.isEmpty()) return Collections.emptyList();
+
 
         // 2️⃣ Pobierz szczegóły filmów wejściowych
         List<Map<String, Object>> inputMoviesDetails = movieIds.stream()
@@ -92,9 +100,9 @@ public class RecommendationService {
         if (!allGenres.isEmpty()) {
             url.append("&with_genres=").append(allGenres.stream().map(String::valueOf).collect(Collectors.joining("|")));
         }
-        if (!allKeywords.isEmpty()) {
-            url.append("&with_keywords=").append(allKeywords.stream().map(String::valueOf).collect(Collectors.joining("|")));
-        }
+//        if (!allKeywords.isEmpty()) {
+//            url.append("&with_keywords=").append(allKeywords.stream().map(String::valueOf).collect(Collectors.joining("|")));
+//        }
 
         // 🔹 Paginacja
         List<Map<String, Object>> allMovies = new ArrayList<>();

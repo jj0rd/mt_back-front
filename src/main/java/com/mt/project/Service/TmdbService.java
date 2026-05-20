@@ -20,7 +20,11 @@ public class TmdbService {
     @Value("${tmdb.api.key}")
     private String tmdbApiKey;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public TmdbService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     public Map<String, Object> getMovie(Integer movieId) {
 

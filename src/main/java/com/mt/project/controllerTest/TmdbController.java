@@ -23,7 +23,11 @@ public class TmdbController {
     @Value("${tmdb.api.url}")
     private String tmdbApiUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public TmdbController(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     @GetMapping("/search/{title}")
     public ResponseEntity<?> searchMovie(@PathVariable String title,@RequestParam(value = "lang", defaultValue = "en-US") String lang) {

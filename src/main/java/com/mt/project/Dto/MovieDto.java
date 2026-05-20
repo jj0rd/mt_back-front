@@ -11,10 +11,19 @@ public class MovieDto {
 
     public List<String> genres;
     public List<String> cast;
-    private String posterPath;
+    public String posterPath;
+    public Integer userRating;
 
     public String getPosterPath() {
         return posterPath;
+    }
+
+    public Integer getUserRating() {
+        return userRating;
+    }
+
+    public void setUserRating(Integer userRating) {
+        this.userRating = userRating;
     }
 
     public void setPosterPath(String posterPath) {

@@ -1,7 +1,6 @@
 package com.mt.project.Service;
 
 import com.mt.project.Dto.MovieDto;
-import com.mt.project.Model.Movie;
 import com.mt.project.Model.UserMovieInteraction;
 import com.mt.project.Repository.MovieRepository;
 import com.mt.project.Repository.UserMovieInteractionRepository;
@@ -11,7 +10,6 @@ import com.mt.project.Vector.ScoredMovie;
 import com.mt.project.Vector.VectorBuilder;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
 import org.apache.lucene.index.DirectoryReader;
@@ -113,18 +111,22 @@ public class UserBasedLuceneRecommendationService {
             QueryParser parser = new QueryParser("content", analyzer);
             Query query = parser.parse(userProfile);
 
-            TopDocs results = searcher.search(query, 20);
+            TopDocs results = searcher.search(query, 200);
 
             List<Integer> candidateIds = new ArrayList<>();
+
+            int targetSize = 20;
 
             for (ScoreDoc scoreDoc : results.scoreDocs) {
 
                 Document doc = searcher.doc(scoreDoc.doc);
                 Integer movieId = Integer.valueOf(doc.get("id"));
 
-                if (!seenMovies.contains(movieId)) {
-                    candidateIds.add(movieId);
-                }
+                if (seenMovies.contains(movieId)) continue;
+
+                candidateIds.add(movieId);
+
+                if (candidateIds.size() == targetSize) break;
             }
 
             if (candidateIds.isEmpty()) {
@@ -187,6 +189,8 @@ public class UserBasedLuceneRecommendationService {
         dto.id = (Integer) movie.get("id");
         dto.title = (String) movie.get("title");
         dto.overview = (String) movie.get("overview");
+        dto.posterPath = (String) movie.get("poster_path");
+
         dto.rating = movie.get("vote_average") != null
                 ? ((Number) movie.get("vote_average")).doubleValue()
                 : null;

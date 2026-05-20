@@ -30,7 +30,7 @@ export default function Login() {
 
       const data = await res.json();
       localStorage.setItem("user", JSON.stringify(data.user));
-      window.location.href = "/rateMovie";
+      window.location.href = "/recommendations";
       setStatus("idle");
       //alert("Login successful!"); // zamień na redirect
     } catch (err) {

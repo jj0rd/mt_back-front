@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface UserMovieInteractionRepository extends JpaRepository<UserMovieInteraction,Integer> {
     List<UserMovieInteraction> findByUserId(Integer userId);
+
 }

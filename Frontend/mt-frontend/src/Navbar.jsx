@@ -69,6 +69,14 @@ export default function Navbar() {
           >
             Rate Movie
           </NavLink>
+          <NavLink
+            to="/recommendations"
+            className={({ isActive }) =>
+              isActive ? 'nav-link nav-link--active' : 'nav-link'
+            }
+          >
+            Recommend my taste
+          </NavLink>
         </div>
       </div>
 

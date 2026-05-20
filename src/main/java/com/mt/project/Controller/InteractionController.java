@@ -1,6 +1,7 @@
 package com.mt.project.Controller;
 
 import com.mt.project.Dto.InteractionRequest;
+import com.mt.project.Dto.MovieDto;
 import com.mt.project.Model.Movie;
 import com.mt.project.Model.User;
 import com.mt.project.Model.UserMovieInteraction;
@@ -8,11 +9,9 @@ import com.mt.project.Repository.MovieRepository;
 import com.mt.project.Repository.UserMovieInteractionRepository;
 import com.mt.project.Repository.UserRepository;
 import com.mt.project.Service.TmdbService;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -62,5 +61,36 @@ public class InteractionController {
         interaction.setRating(request.getRating());
 
         return interactionRepository.save(interaction);
+    }
+    @GetMapping("/{userId}/ratings")
+    public List<MovieDto> getUserRatings(
+            @PathVariable Integer userId
+    ) {
+
+        List<UserMovieInteraction> interactions =
+                interactionRepository.findByUserId(userId);
+
+        return interactions.stream()
+                .map(interaction -> {
+
+                    Movie movie = interaction.getMovie();
+
+                    MovieDto dto = new MovieDto();
+
+                    dto.setId(movie.getTmdbId());
+                    dto.setTitle(movie.getTitle());
+                    dto.setOverview(movie.getOverview());
+                    dto.setPosterPath(movie.getPoster_path());
+                    dto.setCast(movie.getPeople());
+                    dto.setGenres(movie.getGenres());
+                    dto.setReleaseYear(movie.getRelease_date().toString());
+
+
+                    // 🔥 ocena użytkownika
+                    dto.setUserRating(interaction.getRating());
+
+                    return dto;
+                })
+                .toList();
     }
 }
