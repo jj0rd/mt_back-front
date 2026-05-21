@@ -36,28 +36,45 @@ public class InteractionController {
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow();
 
-        // 🔥 1. sprawdź czy film już jest w DB
+        //  1. sprawdź czy film już jest w DB
         Movie movie = movieRepository.findByTmdbId(request.getMovieId())
                 .orElseGet(() -> {
 
-                    // 🔥 2. pobierz z TMDB
+                    //  2. pobierz z TMDB
                     Map<String, Object> tmdbMovie = tmdbService.getMovie(request.getMovieId());
 
                     if (tmdbMovie == null) {
                         throw new RuntimeException("Movie not found in TMDB");
                     }
 
-                    // 🔥 3. mapowanie
+                    //  3. mapowanie
                     Movie newMovie = tmdbService.mapToEntity(tmdbMovie);
 
-                    // 🔥 4. zapis do DB
+                    //  4. zapis do DB
                     return movieRepository.save(newMovie);
                 });
 
-        // 🔥 5. zapisz interakcję
+        //  5. zapisz interakcję
         UserMovieInteraction interaction = new UserMovieInteraction();
         interaction.setUser(user);
         interaction.setMovie(movie);
+        interaction.setRating(request.getRating());
+
+        return interactionRepository.save(interaction);
+    }
+    @PutMapping("/update")
+    public UserMovieInteraction updateInteraction(@RequestBody InteractionRequest request) {
+
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow();
+
+        Movie movie = movieRepository.findByTmdbId(request.getMovieId())
+                .orElseThrow(() -> new RuntimeException("Movie not found"));
+
+        UserMovieInteraction interaction = interactionRepository
+                .findByUserAndMovie(user, movie)
+                .orElseThrow(() -> new RuntimeException("Interaction not found"));
+
         interaction.setRating(request.getRating());
 
         return interactionRepository.save(interaction);
@@ -86,7 +103,7 @@ public class InteractionController {
                     dto.setReleaseYear(movie.getRelease_date().toString());
 
 
-                    // 🔥 ocena użytkownika
+                    //  ocena użytkownika
                     dto.setUserRating(interaction.getRating());
 
                     return dto;

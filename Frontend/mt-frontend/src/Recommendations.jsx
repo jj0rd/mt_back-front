@@ -92,7 +92,7 @@ function StarRating({ value, onChange }) {
 
 function Modal({ movie, onClose }) {
   const [imgErr, setImgErr]       = useState(false);
-  const [rating, setRating]       = useState(0);
+  const [rating, setRating]       = useState(movie.userRating ?? 0);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [saveError, setSaveError] = useState("");
 
@@ -106,8 +106,12 @@ function Modal({ movie, onClose }) {
     setSaveStatus("saving");
     setSaveError("");
     try {
-      const res = await fetch(`${API_BASE}/interactions/add`, {
-        method: "POST",
+            const endpoint = movie.userRating
+        ? `${API_BASE}/interactions/update`
+        : `${API_BASE}/interactions/add`;
+
+      const res = await fetch(endpoint, {
+        method: movie.userRating ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, movieId: movie.id, rating }),
       });
@@ -118,7 +122,7 @@ function Modal({ movie, onClose }) {
       setSaveStatus("saved");
       setTimeout(() => {
         onClose();
-        window.location.reload();        // odświeża listę rekomendacji
+        window.location.reload();
       }, 700);
     } catch (err) {
       setSaveError(err.message);
@@ -184,7 +188,7 @@ function Modal({ movie, onClose }) {
             {/* ── RATING SECTION ── */}
             <div className="mrc-rating-section">
               <p className="mrc-rating-label">
-                Your rating
+                {movie.userRating ? "Change your rating" : "Your rating"}
                 {rating > 0 && (
                   <span className="mrc-rating-hint"> — {RATING_LABELS[rating]}</span>
                 )}
@@ -206,6 +210,7 @@ function Modal({ movie, onClose }) {
               >
                 {saveStatus === "saving" ? "Saving…"
                   : saveStatus === "saved" ? "✓ Saved!"
+                  : movie.userRating ? "Update rating"
                   : "Save rating"}
               </button>
             </div>
@@ -217,7 +222,7 @@ function Modal({ movie, onClose }) {
   );
 }
 
-function WatchedList({ userId }) {
+function WatchedList({ userId, onMovieClick }) {
   const [watched, setWatched] = useState([]);
   const [status, setStatus]   = useState("loading");
 
@@ -254,7 +259,12 @@ function WatchedList({ userId }) {
       </div>
       <div className="watched-strip">
         {watched.map((m, i) => (
-          <div key={m.id ?? i} className="watched-card">
+          <div
+            key={m.id ?? i}
+            className="watched-card"
+            onClick={() => onMovieClick(m)}
+            title="Click to re-rate"
+          >
             <div className="watched-poster">
               {posterUrl(m.posterPath) ? (
                 <img
@@ -274,6 +284,12 @@ function WatchedList({ userId }) {
                   {m.userRating}
                 </div>
               )}
+              <div className="watched-rerate-overlay">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <span>Re-rate</span>
+              </div>
             </div>
             <p className="watched-title">{m.title}</p>
             <p className="watched-year">{m.releaseYear?.slice(0, 4)}</p>
@@ -287,7 +303,7 @@ function WatchedList({ userId }) {
 // ── Page ──────────────────────────────────────────────────────
 export default function Recommendations() {
   const [movies, setMovies]   = useState([]);
-  const [status, setStatus]   = useState("idle"); // idle | loading | error | done
+  const [status, setStatus]   = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [selected, setSelected] = useState(null);
 
@@ -366,8 +382,6 @@ export default function Recommendations() {
               <a href="/register" className="btn-ghost">Create account</a>
             </div>
           </div>
-          {/* WATCHED */}
-        {isLoggedIn && <WatchedList userId={userId} />}
         </div>
       </div>
     );
@@ -463,13 +477,16 @@ export default function Recommendations() {
 
       </div>
 
-          {/* WATCHED */}
-        {isLoggedIn && <WatchedList userId={userId} />}
-        
+      {/* WATCHED */}
+      {isLoggedIn && (
+        <WatchedList userId={userId} onMovieClick={setSelected} />
+      )}
+
       {selected && (
-        <Modal movie={selected} 
-        onClose={() => setSelected(null)} 
-        onRated={fetchRecommendations}
+        <Modal
+          movie={selected}
+          onClose={() => setSelected(null)}
+          onRated={fetchRecommendations}
         />
       )}
 
