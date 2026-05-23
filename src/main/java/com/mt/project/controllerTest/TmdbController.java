@@ -6,9 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -57,61 +55,131 @@ public class TmdbController {
     @PostMapping("/discover")
     public ResponseEntity<?> discoverMovies(@RequestBody MovieDiscoverRequest request) {
 
-        StringBuilder url = new StringBuilder(tmdbApiUrl + "/discover/movie?api_key=" + tmdbApiKey);
+        Map<Integer, Map<String, Object>> merged = new HashMap<>();
 
-        url.append("&language=").append(
-                request.getLanguage() != null ? request.getLanguage() : "en-US"
-        );
-
+        // =========================
+        // 1. GENRE QUERY
+        // =========================
         if (request.getGenre() != null && !request.getGenre().isEmpty()) {
 
-            String genres = request.getGenre()
-                    .stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(","));
+            String genres = join(request.getGenre());
 
-            url.append("&with_genres=").append(genres);
+            String url = tmdbApiUrl + "/discover/movie"
+                    + "?api_key=" + tmdbApiKey
+                    + "&with_genres=" + genres;
+
+            merge(merged, fetch(url), "genre");
         }
 
-        if (request.getKeywords() != null && !request.getKeywords().isEmpty()) {
-
-            String keywordParam = request.getKeywords()
-                    .stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(",")); // lub "|" dla OR
-
-            url.append("&with_keywords=").append(keywordParam);
-        }
-
+        // =========================
+        // 2. CAST / PEOPLE QUERY
+        // =========================
         if (request.getPeople() != null && !request.getPeople().isEmpty()) {
 
-            String people = request.getPeople()
-                    .stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(","));
+            String people = join(request.getPeople());
 
-            url.append("&with_people=").append(people);
+            String url = tmdbApiUrl + "/discover/movie"
+                    + "?api_key=" + tmdbApiKey
+                    + "&with_people=" + people;
+
+            merge(merged, fetch(url), "people");
         }
 
-        if (request.getYearFrom() != null) {
-            url.append("&primary_release_date.gte=")
-                    .append(request.getYearFrom())
-                    .append("-01-01");
+        // =========================
+        // 3. KEYWORDS QUERY
+        // =========================
+        if (request.getKeywords() != null && !request.getKeywords().isEmpty()) {
+
+            String keywords = join(request.getKeywords());
+
+            String url = tmdbApiUrl + "/discover/movie"
+                    + "?api_key=" + tmdbApiKey
+                    + "&with_keywords=" + keywords;
+
+            merge(merged, fetch(url), "keywords");
         }
 
-        if (request.getYearTo() != null) {
-            url.append("&primary_release_date.lte=")
-                    .append(request.getYearTo())
-                    .append("-12-31");
+        // =========================
+        // 4. YEAR RANGE QUERY
+        // =========================
+        if (request.getYearFrom() != null || request.getYearTo() != null) {
+
+            StringBuilder url = new StringBuilder(tmdbApiUrl + "/discover/movie?api_key=" + tmdbApiKey);
+
+            if (request.getYearFrom() != null) {
+                url.append("&primary_release_date.gte=")
+                        .append(request.getYearFrom())
+                        .append("-01-01");
+            }
+
+            if (request.getYearTo() != null) {
+                url.append("&primary_release_date.lte=")
+                        .append(request.getYearTo())
+                        .append("-12-31");
+            }
+
+            merge(merged, fetch(url.toString()), "year");
         }
 
-        if (request.getRating() != null) {
-            url.append("&vote_average.gte=").append(request.getRating());
-        }
-
-        Map<String, Object> result = restTemplate.getForObject(url.toString(), Map.class);
+        // =========================
+        // 5. FINAL FILTER (USER PARAMETERS)
+        // =========================
+        List<Map<String, Object>> result = merged.values().stream()
+                .filter(m -> filterByRating(m, request))
+                .toList();
 
         return ResponseEntity.ok(result);
+    }
+
+    private void merge(
+            Map<Integer, Map<String, Object>> merged,
+            List<Map<String, Object>> movies,
+            String source
+    ) {
+
+        for (Map<String, Object> m : movies) {
+
+            Integer id = (Integer) m.get("id");
+            if (id == null) continue;
+
+            if (!merged.containsKey(id)) {
+
+                m.put("sources", new HashSet<String>());
+                ((Set<String>) m.get("sources")).add(source);
+
+                merged.put(id, m);
+
+            } else {
+                ((Set<String>) merged.get(id).get("sources")).add(source);
+            }
+        }
+    }
+    private List<Map<String, Object>> fetch(String url) {
+
+        Map<String, Object> res =
+                restTemplate.getForObject(url, Map.class);
+
+        if (res == null || !res.containsKey("results")) {
+            return Collections.emptyList();
+        }
+
+        return (List<Map<String, Object>>) res.get("results");
+    }
+    private boolean filterByRating(Map<String, Object> movie, MovieDiscoverRequest request) {
+
+        if (request.getRating() == null) {
+            return true;
+        }
+
+        Double rating =
+                ((Number) movie.getOrDefault("vote_average", 0)).doubleValue();
+
+        return rating >= request.getRating();
+    }
+    private String join(List<?> list) {
+        return list.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining("|"));
     }
     @GetMapping("/genres")
     public ResponseEntity<?> getGenres() {
