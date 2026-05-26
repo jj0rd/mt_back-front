@@ -23,7 +23,34 @@ public class VectorBuilder {
         Map<String, Double> map = new HashMap<>();
 
         for (String f : features) {
-            map.merge(f.toLowerCase(), 1.0, Double::sum);
+
+            String key = f.toLowerCase();
+
+            // ignorujemy numeric-like features
+            if (key.startsWith("year_") || key.startsWith("rating_")) {
+                continue;
+            }
+
+            map.merge(key, 1.0, Double::sum);
+        }
+
+        String date = (String) movie.get("release_date");
+        if (date != null && date.length() >= 4) {
+
+            int year = Integer.parseInt(date.substring(0, 4));
+            double normalizedYear = (year - 1950) / 80.0;
+            normalizedYear = Math.max(0, Math.min(1, normalizedYear));
+
+            map.put("year", normalizedYear);
+        }
+
+        Object ratingObj = movie.get("vote_average");
+        if (ratingObj != null) {
+
+            double rating = ((Number) ratingObj).doubleValue();
+            double normalizedRating = rating / 10.0;
+
+            map.put("rating", normalizedRating);
         }
 
         return new FeatureVector(map);

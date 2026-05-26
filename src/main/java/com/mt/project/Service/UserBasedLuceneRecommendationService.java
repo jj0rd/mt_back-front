@@ -162,11 +162,22 @@ public class UserBasedLuceneRecommendationService {
                         cosineSimilarity.compute(userVector, movieVector);
 
                 // 🔹 LUCENE
+                double maxScore = Arrays.stream(results.scoreDocs)
+                        .mapToDouble(sd -> sd.score)
+                        .max()
+                        .orElse(1.0);
+
                 double luceneScore = scoreDoc.score;
-                double normalizedLucene = normalizeLucene(luceneScore);
+                double normalizedLucene =
+                        Math.log1p(luceneScore) / Math.log1p(maxScore);
 
                 // 🔥 FINAL SCORE
-                double finalScore = 0.7 * normalizedLucene + 0.3 * cosineScore;
+                double finalScore = 0.6 * normalizedLucene + 0.4 * cosineScore;
+
+//                System.out.println("movieId=" + movieId +
+//                        " lucene=" + luceneScore +
+//                        " cosine=" + cosineScore +
+//                        " final=" + finalScore);
 
                 scored.add(new ScoredMovie(movieRaw, finalScore));
             }
@@ -235,6 +246,12 @@ public class UserBasedLuceneRecommendationService {
 
         Map<String, Double> map = new HashMap<>();
 
+        double avgYear = 0;
+        double avgRating = 0;
+
+        int yearWeightSum = 0;
+        int ratingWeightSum = 0;
+
         for (UserMovieInteraction interaction : interactions) {
 
             Integer movieId = interaction.getMovie().getTmdbId();
@@ -242,21 +259,79 @@ public class UserBasedLuceneRecommendationService {
             Map<String, Object> movie = tmdbService.getMovie(movieId);
             if (movie == null) continue;
 
+            double weight = Math.max(1, interaction.getRating());
+
             List<String> features =
                     featureExtractionService.extractFeaturesFromTmdb(movie);
 
-            double weight = Math.max(1, interaction.getRating());
-
+            // =========================
+            // TEXT FEATURES (genres, actors, etc.)
+            // =========================
             for (String f : features) {
-                map.merge(f.toLowerCase(), weight, Double::sum);
+
+                String key = f.toLowerCase();
+
+                // ignorujemy stare stringowe encodingi liczb
+                if (key.startsWith("year_") || key.startsWith("rating_")) {
+                    continue;
+                }
+
+                map.merge(key, weight, Double::sum);
+            }
+
+            // =========================
+            // YEAR (NUMERIC FEATURE)
+            // =========================
+            String releaseDate = (String) movie.get("release_date");
+
+            if (releaseDate != null && releaseDate.length() >= 4) {
+
+                int year = Integer.parseInt(releaseDate.substring(0, 4));
+
+                avgYear += year * weight;
+                yearWeightSum += weight;
+            }
+
+            // =========================
+            // RATING (NUMERIC FEATURE)
+            // =========================
+            Object ratingObj = movie.get("vote_average");
+
+            if (ratingObj != null) {
+
+                double rating = ((Number) ratingObj).doubleValue();
+
+                avgRating += rating * weight;
+                ratingWeightSum += weight;
             }
         }
 
-        return new FeatureVector(map);
-    }
+        // =========================
+        // NORMALIZATION YEAR
+        // =========================
+        if (yearWeightSum > 0) {
 
-    private double normalizeLucene(double score) {
-        return score / (score + 1);
+            double year = avgYear / yearWeightSum;
+
+            double normalizedYear = (year - 1950) / 80.0;
+            normalizedYear = Math.max(0, Math.min(1, normalizedYear));
+
+            map.put("year", normalizedYear * 5.0);
+        }
+
+        // =========================
+        // NORMALIZATION RATING
+        // =========================
+        if (ratingWeightSum > 0) {
+
+            double rating = avgRating / ratingWeightSum;
+
+            double normalizedRating = rating / 10.0;
+
+            map.put("rating", normalizedRating * 3.0);
+        }
+
+        return new FeatureVector(map);
     }
 
     public MovieDto getMovieToRate(Integer userId) {
@@ -320,4 +395,5 @@ public class UserBasedLuceneRecommendationService {
 
         return dto;
     }
+
 }

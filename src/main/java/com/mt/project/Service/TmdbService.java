@@ -138,4 +138,18 @@ public class TmdbService {
                 ));
     }
 
+    public List<Map<String, Object>> discoverMovies(int page) {
+
+        String url = tmdbApiUrl + "/discover/movie"
+                + "?api_key=" + tmdbApiKey
+                + "&sort_by=popularity.desc"
+                + "&vote_count.gte=50"
+                + "&page=" + page;
+
+        Map<String, Object> response =
+                restTemplate.getForObject(url, Map.class);
+
+        return (List<Map<String, Object>>)
+                response.getOrDefault("results", List.of());
+    }
 }
