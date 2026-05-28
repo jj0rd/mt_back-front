@@ -60,7 +60,7 @@ public class UserBasedLuceneRecommendationService {
         List<UserMovieInteraction> interactions =
                 interactionRepository.findByUserId(userId);
 
-        Map<String, Integer> weights = new HashMap<>();
+        Map<String, Double> weights = new HashMap<>();
 
         for (UserMovieInteraction interaction : interactions) {
 
@@ -74,16 +74,22 @@ public class UserBasedLuceneRecommendationService {
             List<String> features =
                     featureExtractionService.extractFeaturesFromTmdb(movie);
 
-            int weight = Math.max(1, interaction.getRating());
+            // 🔥 skala 1-5 => -2 do +2
+            double weight = interaction.getRating() - 3.0;
 
             for (String f : features) {
-                weights.merge(f.toLowerCase(), weight, Integer::sum);
+
+                String key = f.toLowerCase();
+
+                weights.merge(key, weight, Double::sum);
             }
         }
 
-        // 🔥 budowa query z boostem
+        // 🔥 Lucene dostaje TYLKO dodatnie feature
         return weights.entrySet().stream()
-                .map(e -> e.getKey() + "^" + e.getValue())
+                .filter(e -> e.getValue() > 0)
+                .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
+                .map(e -> e.getKey() + "^" + String.format("%.2f", e.getValue()))
                 .collect(Collectors.joining(" "));
     }
 
@@ -174,10 +180,11 @@ public class UserBasedLuceneRecommendationService {
                 // 🔥 FINAL SCORE
                 double finalScore = 0.6 * normalizedLucene + 0.4 * cosineScore;
 
-//                System.out.println("movieId=" + movieId +
-//                        " lucene=" + luceneScore +
-//                        " cosine=" + cosineScore +
-//                        " final=" + finalScore);
+                System.out.println("movieId=" + movieId +
+                        " lucene=" + luceneScore +
+                        "normalized lucene=" + normalizedLucene +
+                        " cosine=" + cosineScore +
+                        " final=" + finalScore);
 
                 scored.add(new ScoredMovie(movieRaw, finalScore));
             }
@@ -249,30 +256,33 @@ public class UserBasedLuceneRecommendationService {
         double avgYear = 0;
         double avgRating = 0;
 
-        int yearWeightSum = 0;
-        int ratingWeightSum = 0;
+        double yearWeightSum = 0;
+        double ratingWeightSum = 0;
 
         for (UserMovieInteraction interaction : interactions) {
 
             Integer movieId = interaction.getMovie().getTmdbId();
 
-            Map<String, Object> movie = tmdbService.getMovie(movieId);
+            Map<String, Object> movie =
+                    tmdbService.getMovie(movieId);
+
             if (movie == null) continue;
 
-            double weight = Math.max(1, interaction.getRating());
+            // 🔥 1-5 => -2 do +2
+            double weight = interaction.getRating() - 3.0;
 
             List<String> features =
                     featureExtractionService.extractFeaturesFromTmdb(movie);
 
             // =========================
-            // TEXT FEATURES (genres, actors, etc.)
+            // TEXT FEATURES
             // =========================
             for (String f : features) {
 
                 String key = f.toLowerCase();
 
-                // ignorujemy stare stringowe encodingi liczb
-                if (key.startsWith("year_") || key.startsWith("rating_")) {
+                if (key.startsWith("year_")
+                        || key.startsWith("rating_")) {
                     continue;
                 }
 
@@ -280,55 +290,65 @@ public class UserBasedLuceneRecommendationService {
             }
 
             // =========================
-            // YEAR (NUMERIC FEATURE)
+            // YEAR
             // =========================
             String releaseDate = (String) movie.get("release_date");
 
-            if (releaseDate != null && releaseDate.length() >= 4) {
+            if (releaseDate != null
+                    && releaseDate.length() >= 4 && weight > 0) {
 
-                int year = Integer.parseInt(releaseDate.substring(0, 4));
+                int year =
+                        Integer.parseInt(releaseDate.substring(0, 4));
 
                 avgYear += year * weight;
                 yearWeightSum += weight;
             }
 
             // =========================
-            // RATING (NUMERIC FEATURE)
+            // TMDB RATING
             // =========================
             Object ratingObj = movie.get("vote_average");
 
             if (ratingObj != null) {
 
-                double rating = ((Number) ratingObj).doubleValue();
+                double rating =
+                        ((Number) ratingObj).doubleValue();
 
-                avgRating += rating * weight;
-                ratingWeightSum += weight;
+                if (weight > 0) {
+                    avgRating += rating * weight;
+                    ratingWeightSum += weight;
+                }
             }
         }
 
         // =========================
-        // NORMALIZATION YEAR
+        // NORMALIZED YEAR
         // =========================
         if (yearWeightSum > 0) {
 
             double year = avgYear / yearWeightSum;
 
-            double normalizedYear = (year - 1950) / 80.0;
-            normalizedYear = Math.max(0, Math.min(1, normalizedYear));
+            double normalizedYear =
+                    (year - 1950) / 80.0;
 
-            map.put("year", normalizedYear * 5.0);
+            normalizedYear =
+                    Math.max(0, Math.min(1, normalizedYear));
+
+            map.put("year", normalizedYear * 2.0);
         }
 
         // =========================
-        // NORMALIZATION RATING
+        // NORMALIZED RATING
         // =========================
         if (ratingWeightSum > 0) {
 
-            double rating = avgRating / ratingWeightSum;
+            double rating =
+                    avgRating / ratingWeightSum;
 
-            double normalizedRating = rating / 10.0;
+            double normalizedRating =
+                    rating / 10.0;
 
-            map.put("rating", normalizedRating * 3.0);
+            map.put("rating", normalizedRating * 1.5);
         }
 
         return new FeatureVector(map);
