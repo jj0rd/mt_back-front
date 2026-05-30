@@ -21,9 +21,9 @@ public class FeatureExtractionService {
         List<String> tokens = new ArrayList<>();
 
         // genres
-        for (String genre : movie.getGenres()) {
-            tokens.add(genre.toLowerCase());
-        }
+//        for (String genre : movie.getGenres()) {
+//            tokens.add(genre.toLowerCase());
+//        }
 
         // ===== KEYWORDS  =====
 //        if (movie.getKeywords() != null) {
@@ -33,11 +33,11 @@ public class FeatureExtractionService {
 //        }
 
         // peope cast+director
-        if (movie.getPeople() != null) {
-            for (String actor : movie.getPeople()) {
-                tokens.add(actor.toLowerCase().replace(" ", "_"));
-            }
-        }
+//        if (movie.getPeople() != null) {
+//            for (String actor : movie.getPeople()) {
+//                tokens.add(actor.toLowerCase().replace(" ", "_"));
+//            }
+//        }
 
         // ===== OVERVIEW + NLP =====
         if (movie.getOverview() != null) {

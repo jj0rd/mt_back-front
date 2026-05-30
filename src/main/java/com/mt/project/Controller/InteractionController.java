@@ -1,6 +1,7 @@
 package com.mt.project.Controller;
 
 import com.mt.project.Dto.InteractionRequest;
+import com.mt.project.Dto.InteractionResponse;
 import com.mt.project.Dto.MovieDto;
 import com.mt.project.Model.Movie;
 import com.mt.project.Model.User;
@@ -10,6 +11,8 @@ import com.mt.project.Repository.UserMovieInteractionRepository;
 import com.mt.project.Repository.UserRepository;
 import com.mt.project.Service.TmdbService;
 import org.springframework.web.bind.annotation.*;
+import com.mt.project.Model.Genre;
+import com.mt.project.Model.Person;
 
 import java.util.List;
 import java.util.Map;
@@ -31,7 +34,7 @@ public class InteractionController {
         this.tmdbService = tmdbService;
     }
     @PostMapping("/add")
-    public UserMovieInteraction addInteraction(@RequestBody InteractionRequest request) {
+    public InteractionResponse addInteraction(@RequestBody InteractionRequest request) {
 
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow();
@@ -60,7 +63,17 @@ public class InteractionController {
         interaction.setMovie(movie);
         interaction.setRating(request.getRating());
 
-        return interactionRepository.save(interaction);
+        UserMovieInteraction savedInteraction = interactionRepository.save(interaction);
+
+        // 6. Przepisanie danych do InteractionResponse (Naprawa błędu serializacji)
+        InteractionResponse response = new InteractionResponse();
+
+        // tmdbId z Twojego serwisu to już Integer
+        response.setMovieId(movie.getTmdbId());
+        response.setRating(savedInteraction.getRating());
+        response.setMovieTitle(movie.getTitle());
+
+        return response;
     }
     @PutMapping("/update")
     public UserMovieInteraction updateInteraction(@RequestBody InteractionRequest request) {
@@ -98,8 +111,16 @@ public class InteractionController {
                     dto.setTitle(movie.getTitle());
                     dto.setOverview(movie.getOverview());
                     dto.setPosterPath(movie.getPoster_path());
-                    dto.setCast(movie.getPeople());
-                    dto.setGenres(movie.getGenres());
+                    dto.setCast(
+                            movie.getPeople().stream()
+                                    .map(Person::getName)
+                                    .toList()
+                    );
+                    dto.setGenres(
+                            movie.getGenres().stream()
+                                    .map(Genre::getName)
+                                    .toList()
+                    );
                     dto.setReleaseYear(movie.getRelease_date().toString());
 
 

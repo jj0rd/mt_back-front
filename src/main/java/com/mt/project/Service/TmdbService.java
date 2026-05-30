@@ -1,6 +1,12 @@
 package com.mt.project.Service;
 
+import com.mt.project.Model.Genre;
+import com.mt.project.Model.Keyword;
 import com.mt.project.Model.Movie;
+import com.mt.project.Model.Person;
+import com.mt.project.Repository.GenreRepository;
+import com.mt.project.Repository.KeywordRepository;
+import com.mt.project.Repository.PersonRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -21,9 +27,16 @@ public class TmdbService {
     private String tmdbApiKey;
 
     private final RestTemplate restTemplate;
+    private final GenreRepository genreRepository;
+    private final KeywordRepository keywordRepository;
+    private final PersonRepository personRepository;
 
-    public TmdbService(RestTemplate restTemplate) {
+    public TmdbService(RestTemplate restTemplate,GenreRepository genreRepository,
+                       KeywordRepository keywordRepository, PersonRepository personRepository) {
         this.restTemplate = restTemplate;
+        this.genreRepository = genreRepository;
+        this.keywordRepository = keywordRepository;
+        this.personRepository = personRepository;
     }
 
     public Map<String, Object> getMovie(Integer movieId) {
@@ -53,11 +66,19 @@ public class TmdbService {
         // 🎭 genres
         List<Map<String, Object>> genres = (List<Map<String, Object>>) tmdb.get("genres");
         if (genres != null) {
-            movie.setGenres(
-                    genres.stream()
-                            .map(g -> ((String) g.get("name")).toLowerCase())
-                            .toList()
-            );
+            List<Genre> genreEntities = genres.stream()
+                    .map(g -> ((String) g.get("name")).toLowerCase())
+                    .map(name ->
+                            genreRepository.findByName(name)
+                                    .orElseGet(() -> {
+                                        Genre genre = new Genre();
+                                        genre.setName(name);
+                                        return genreRepository.save(genre);
+                                    })
+                    )
+                    .toList();
+
+            movie.setGenres(genreEntities);
         }
 
         // 🔑 keywords
@@ -65,11 +86,19 @@ public class TmdbService {
         if (keywordsMap != null) {
             List<Map<String, Object>> keywords = (List<Map<String, Object>>) keywordsMap.get("keywords");
 
-            movie.setKeywords(
-                    keywords.stream()
-                            .map(k -> ((String) k.get("name")).toLowerCase().replace(" ", "_"))
-                            .toList()
-            );
+            List<Keyword> keywordEntities = keywords.stream()
+                    .map(k -> ((String) k.get("name")).toLowerCase().replace(" ", "_"))
+                    .map(name ->
+                            keywordRepository.findByName(name)
+                                    .orElseGet(() -> {
+                                        Keyword keyword = new Keyword();
+                                        keyword.setName(name);
+                                        return keywordRepository.save(keyword);
+                                    })
+                    )
+                    .toList();
+
+            movie.setKeywords(keywordEntities);
         }
 
         // 🎬 cast (top 5)
@@ -77,12 +106,20 @@ public class TmdbService {
         if (credits != null) {
             List<Map<String, Object>> cast = (List<Map<String, Object>>) credits.get("cast");
 
-            movie.setPeople(
-                    cast.stream()
-                            .limit(5)
-                            .map(c -> ((String) c.get("name")).toLowerCase().replace(" ", "_"))
-                            .toList()
-            );
+            List<Person> people = cast.stream()
+                    .limit(5)
+                    .map(c -> ((String) c.get("name")).toLowerCase().replace(" ", "_"))
+                    .map(name ->
+                            personRepository.findByName(name)
+                                    .orElseGet(() -> {
+                                        Person p = new Person();
+                                        p.setName(name);
+                                        return personRepository.save(p);
+                                    })
+                    )
+                    .toList();
+
+            movie.setPeople(people);
         }
 
         return movie;

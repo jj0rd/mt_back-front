@@ -15,14 +15,29 @@ public class Movie {
     private Integer id;
     private String title;
     private Integer tmdbId;
-    @ElementCollection
-    private List<String> genres;
+    @ManyToMany
+    @JoinTable(
+            name = "movie_genre",
+            joinColumns = @JoinColumn(name = "movie_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id")
+    )
+    private List<Genre> genres;
     @Lob
     private String overview;
-    @ElementCollection
-    private List<String> keywords;
-    @ElementCollection
-    private List<String> people;
+    @ManyToMany
+    @JoinTable(
+            name = "movie_keyword",
+            joinColumns = @JoinColumn(name = "movie_id"),
+            inverseJoinColumns = @JoinColumn(name = "keyword_id")
+    )
+    private List<Keyword> keywords;
+    @ManyToMany
+    @JoinTable(
+            name = "movie_person",
+            joinColumns = @JoinColumn(name = "movie_id"),
+            inverseJoinColumns = @JoinColumn(name = "person_id")
+    )
+    private List<Person> people;
     private String poster_path;
     private LocalDate release_date;
 
@@ -41,19 +56,19 @@ public class Movie {
         this.tmdbId = tmdbId;
     }
 
-    public List<String> getKeywords() {
+    public List<Keyword> getKeywords() {
         return keywords;
     }
 
-    public void setKeywords(List<String> keywords) {
+    public void setKeywords(List<Keyword> keywords) {
         this.keywords = keywords;
     }
 
-    public List<String> getPeople() {
+    public List<Person> getPeople() {
         return people;
     }
 
-    public void setPeople(List<String> people) {
+    public void setPeople(List<Person> people) {
         this.people = people;
     }
 
@@ -89,11 +104,11 @@ public class Movie {
         this.title = title;
     }
 
-    public List<String> getGenres() {
+    public List<Genre> getGenres() {
         return genres;
     }
 
-    public void setGenres(List<String> genres) {
+    public void setGenres(List<Genre> genres) {
         this.genres = genres;
     }
 
