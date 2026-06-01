@@ -1,9 +1,12 @@
 package com.mt.project.Service;
 
 import com.mt.project.Dto.MovieDto;
+import com.mt.project.Model.Movie;
+import com.mt.project.Model.ProfileSource;
 import com.mt.project.Model.UserMovieInteraction;
 import com.mt.project.Repository.MovieRepository;
 import com.mt.project.Repository.UserMovieInteractionRepository;
+import com.mt.project.Service.ProfileStrategy.UserProfileProvider;
 import com.mt.project.Vector.CosineSimilarity;
 import com.mt.project.Vector.FeatureVector;
 import com.mt.project.Vector.ScoredMovie;
@@ -16,76 +19,74 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class UserBasedLuceneRecommendationService {
 
-    private final FeatureExtractionService featureExtractionService;
     private final UserMovieInteractionRepository interactionRepository;
-    private final MovieRepository movieRepository;
     private final TmdbService tmdbService;
-
     private final Directory luceneDirectory;
     private final StandardAnalyzer analyzer;
     private final VectorBuilder vectorBuilder;
     private final CosineSimilarity cosineSimilarity;
 
+    // Dynamiczna mapa strategii: Klucz = Enum, Wartość = Konkretna implementacja
+    private final Map<ProfileSource, UserProfileProvider> profileProviders;
+
     public UserBasedLuceneRecommendationService(
-            FeatureExtractionService featureExtractionService,
             UserMovieInteractionRepository interactionRepository,
-            MovieRepository movieRepository,
             Directory luceneDirectory,
             StandardAnalyzer analyzer,
             TmdbService tmdbService,
             VectorBuilder vectorBuilder,
-            CosineSimilarity cosineSimilarity
+            CosineSimilarity cosineSimilarity,
+            List<UserProfileProvider> providerList // Spring wstrzyknie tu wszystkie komponenty implementujące interfejs
     ) {
-        this.featureExtractionService = featureExtractionService;
         this.interactionRepository = interactionRepository;
-        this.movieRepository = movieRepository;
         this.luceneDirectory = luceneDirectory;
         this.analyzer = analyzer;
         this.tmdbService = tmdbService;
         this.vectorBuilder = vectorBuilder;
         this.cosineSimilarity = cosineSimilarity;
+
+        // Mapujemy listę na mapę dla szybkiego dostępu O(1)
+        this.profileProviders = providerList.stream()
+                .collect(Collectors.toMap(UserProfileProvider::getSourceType, p -> p));
+    }
+
+    // Helper pobierający strategię lub rzucający błąd
+    private UserProfileProvider getProvider(ProfileSource source) {
+        UserProfileProvider provider = profileProviders.get(source);
+        if (provider == null) {
+            throw new IllegalArgumentException("Unsupported profile source: " + source);
+        }
+        return provider;
     }
 
     // ==============================
-    // 1. BUILD USER PROFILE
+    // 1. BUILD USER PROFILE (Zaktualizowany o strategię)
     // ==============================
-    private String buildUserProfile(Integer userId) {
-
-        List<UserMovieInteraction> interactions =
-                interactionRepository.findByUserId(userId);
-
+    private String buildUserProfile(Integer userId, UserProfileProvider provider) {
+        List<UserMovieInteraction> interactions = interactionRepository.findByUserId(userId);
         Map<String, Double> weights = new HashMap<>();
 
         for (UserMovieInteraction interaction : interactions) {
-
-            Integer movieId = interaction.getMovie().getTmdbId();
-
-            Map<String, Object> movie =
-                    tmdbService.getMovie(movieId);
-
+            Movie movie = interaction.getMovie();
             if (movie == null) continue;
 
-            List<String> features =
-                    featureExtractionService.extractFeaturesFromTmdb(movie);
-
-            // 🔥 skala 1-5 => -2 do +2
+            // 🎯 DYNAMICZNY WYBÓR ŹRÓDŁA CECH
+            List<String> features = provider.getFeatures(movie);
             double weight = interaction.getRating() - 3.0;
 
             for (String f : features) {
-
                 String key = f.toLowerCase();
-
                 weights.merge(key, weight, Double::sum);
             }
         }
 
-        // 🔥 Lucene dostaje TYLKO dodatnie feature
         return weights.entrySet().stream()
                 .filter(e -> e.getValue() > 0)
                 .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
@@ -94,44 +95,36 @@ public class UserBasedLuceneRecommendationService {
     }
 
     // ==============================
-    // 2. RECOMMENDATION
+    // 2. RECOMMENDATION (Przyjmuje source!)
     // ==============================
-    public List<MovieDto> recommend(Integer userId) {
+    public List<MovieDto> recommend(Integer userId, ProfileSource source) {
+        UserProfileProvider provider = getProvider(source);
 
         try (DirectoryReader reader = DirectoryReader.open(luceneDirectory)) {
-
-            String userProfile = buildUserProfile(userId);
+            String userProfile = buildUserProfile(userId, provider);
 
             if (userProfile == null || userProfile.isBlank()) {
                 return Collections.emptyList();
             }
 
-            // 🔥 filmy już obejrzane
             Set<Integer> seenMovies = interactionRepository.findByUserId(userId)
                     .stream()
                     .map(i -> i.getMovie().getTmdbId())
                     .collect(Collectors.toSet());
 
             IndexSearcher searcher = new IndexSearcher(reader);
-
             QueryParser parser = new QueryParser("content", analyzer);
             Query query = parser.parse(userProfile);
 
             TopDocs results = searcher.search(query, 200);
-
             List<Integer> candidateIds = new ArrayList<>();
-
             int targetSize = 20;
 
             for (ScoreDoc scoreDoc : results.scoreDocs) {
-
                 Document doc = searcher.doc(scoreDoc.doc);
                 Integer movieId = Integer.valueOf(doc.get("id"));
-
                 if (seenMovies.contains(movieId)) continue;
-
                 candidateIds.add(movieId);
-
                 if (candidateIds.size() == targetSize) break;
             }
 
@@ -139,18 +132,13 @@ public class UserBasedLuceneRecommendationService {
                 return Collections.emptyList();
             }
 
-            // 🔥 BATCH CALL do TMDB (ważne!)
-            Map<Integer, Map<String, Object>> tmdbBatch =
-                    tmdbService.getMoviesBatch(candidateIds);
-
-            List<MovieDto> recommendations = new ArrayList<>();
-
-            FeatureVector userVector = buildUserVector(userId);
-
+            Map<Integer, Map<String, Object>> tmdbBatch = tmdbService.getMoviesBatch(candidateIds);
             List<ScoredMovie> scored = new ArrayList<>();
 
-            for (ScoreDoc scoreDoc : results.scoreDocs) {
+            // 🎯 DYNAMICZNY WEKTOR UŻYTKOWNIKA
+            FeatureVector userVector = buildUserVector(userId, provider);
 
+            for (ScoreDoc scoreDoc : results.scoreDocs) {
                 Document doc = searcher.doc(scoreDoc.doc);
                 Integer movieId = Integer.valueOf(doc.get("id"));
 
@@ -159,32 +147,17 @@ public class UserBasedLuceneRecommendationService {
                 Map<String, Object> movieRaw = tmdbBatch.get(movieId);
                 if (movieRaw == null) continue;
 
-                // 🔹 VECTOR filmu
-                FeatureVector movieVector =
-                        vectorBuilder.fromMovie(movieRaw);
+                FeatureVector movieVector = vectorBuilder.fromMovie(movieRaw);
+                double cosineScore = cosineSimilarity.compute(userVector, movieVector);
 
-                // 🔹 COSINE
-                double cosineScore =
-                        cosineSimilarity.compute(userVector, movieVector);
-
-                // 🔹 LUCENE
                 double maxScore = Arrays.stream(results.scoreDocs)
                         .mapToDouble(sd -> sd.score)
                         .max()
                         .orElse(1.0);
 
                 double luceneScore = scoreDoc.score;
-                double normalizedLucene =
-                        Math.log1p(luceneScore) / Math.log1p(maxScore);
-
-                // 🔥 FINAL SCORE
+                double normalizedLucene = Math.log1p(luceneScore) / Math.log1p(maxScore);
                 double finalScore = 0.6 * normalizedLucene + 0.4 * cosineScore;
-
-                System.out.println("movieId=" + movieId +
-                        " lucene=" + luceneScore +
-                        "normalized lucene=" + normalizedLucene +
-                        " cosine=" + cosineScore +
-                        " final=" + finalScore);
 
                 scored.add(new ScoredMovie(movieRaw, finalScore));
             }
@@ -192,12 +165,68 @@ public class UserBasedLuceneRecommendationService {
             return scored.stream()
                     .sorted((a, b) -> Double.compare(b.getScore(), a.getScore()))
                     .limit(20)
-                    .map(s -> mapToDto(s.getMovie()))
+                    .map(scoredMovie -> mapToDto(scoredMovie.getMovie()))
                     .toList();
 
         } catch (Exception e) {
             throw new RuntimeException("Lucene recommendation failed", e);
         }
+    }
+
+    // ==============================
+    // 3. BUILD USER VECTOR (Zaktualizowany o strategię)
+    // ==============================
+    private FeatureVector buildUserVector(Integer userId, UserProfileProvider provider) {
+        List<UserMovieInteraction> interactions = interactionRepository.findByUserId(userId);
+        Map<String, Double> map = new HashMap<>();
+
+        double avgYear = 0;
+        double avgRating = 0;
+        double yearWeightSum = 0;
+        double ratingWeightSum = 0;
+
+        for (UserMovieInteraction interaction : interactions) {
+            Movie movie = interaction.getMovie();
+            if (movie == null) continue;
+
+            double weight = interaction.getRating() - 3.0;
+
+            // 🎯 DYNAMICZNY WYBÓR
+            List<String> features = provider.getFeatures(movie);
+
+            for (String f : features) {
+                String key = f.toLowerCase();
+                if (key.startsWith("year_") || key.startsWith("rating_")) continue;
+                map.merge(key, weight, Double::sum);
+            }
+
+            // 🎯 ROK Z战略
+            Integer year = provider.getReleaseYear(movie);
+            if (year != null && weight > 0) {
+                avgYear += year * weight;
+                yearWeightSum += weight;
+            }
+
+            // 🎯 OCENA Z STRATEGII
+            Double rating = provider.getVoteAverage(movie);
+            if (rating != null && weight > 0) {
+                avgRating += rating * weight;
+                ratingWeightSum += weight;
+            }
+        }
+
+        if (yearWeightSum > 0) {
+            double year = avgYear / yearWeightSum;
+            double normalizedYear = (year - 1950) / 80.0;
+            map.put("year", Math.max(0, Math.min(1, normalizedYear)) * 2.0);
+        }
+
+        if (ratingWeightSum > 0) {
+            double rating = avgRating / ratingWeightSum;
+            map.put("rating", (rating / 10.0) * 1.5);
+        }
+
+        return new FeatureVector(map);
     }
 
     public MovieDto mapToDto(Map<String, Object> movie) {
@@ -245,113 +274,6 @@ public class UserBasedLuceneRecommendationService {
         }
 
         return dto;
-    }
-    private FeatureVector buildUserVector(Integer userId) {
-
-        List<UserMovieInteraction> interactions =
-                interactionRepository.findByUserId(userId);
-
-        Map<String, Double> map = new HashMap<>();
-
-        double avgYear = 0;
-        double avgRating = 0;
-
-        double yearWeightSum = 0;
-        double ratingWeightSum = 0;
-
-        for (UserMovieInteraction interaction : interactions) {
-
-            Integer movieId = interaction.getMovie().getTmdbId();
-
-            Map<String, Object> movie =
-                    tmdbService.getMovie(movieId);
-
-            if (movie == null) continue;
-
-            // 🔥 1-5 => -2 do +2
-            double weight = interaction.getRating() - 3.0;
-
-            List<String> features =
-                    featureExtractionService.extractFeaturesFromTmdb(movie);
-
-            // =========================
-            // TEXT FEATURES
-            // =========================
-            for (String f : features) {
-
-                String key = f.toLowerCase();
-
-                if (key.startsWith("year_")
-                        || key.startsWith("rating_")) {
-                    continue;
-                }
-
-                map.merge(key, weight, Double::sum);
-            }
-
-            // =========================
-            // YEAR
-            // =========================
-            String releaseDate = (String) movie.get("release_date");
-
-            if (releaseDate != null
-                    && releaseDate.length() >= 4 && weight > 0) {
-
-                int year =
-                        Integer.parseInt(releaseDate.substring(0, 4));
-
-                avgYear += year * weight;
-                yearWeightSum += weight;
-            }
-
-            // =========================
-            // TMDB RATING
-            // =========================
-            Object ratingObj = movie.get("vote_average");
-
-            if (ratingObj != null) {
-
-                double rating =
-                        ((Number) ratingObj).doubleValue();
-
-                if (weight > 0) {
-                    avgRating += rating * weight;
-                    ratingWeightSum += weight;
-                }
-            }
-        }
-
-        // =========================
-        // NORMALIZED YEAR
-        // =========================
-        if (yearWeightSum > 0) {
-
-            double year = avgYear / yearWeightSum;
-
-            double normalizedYear =
-                    (year - 1950) / 80.0;
-
-            normalizedYear =
-                    Math.max(0, Math.min(1, normalizedYear));
-
-            map.put("year", normalizedYear * 2.0);
-        }
-
-        // =========================
-        // NORMALIZED RATING
-        // =========================
-        if (ratingWeightSum > 0) {
-
-            double rating =
-                    avgRating / ratingWeightSum;
-
-            double normalizedRating =
-                    rating / 10.0;
-
-            map.put("rating", normalizedRating * 1.5);
-        }
-
-        return new FeatureVector(map);
     }
 
     public MovieDto getMovieToRate(Integer userId) {

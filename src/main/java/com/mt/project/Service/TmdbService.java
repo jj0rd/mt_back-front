@@ -57,6 +57,8 @@ public class TmdbService {
         movie.setOverview((String) tmdb.get("overview"));
         movie.setPoster_path((String) tmdb.get("poster_path"));
 
+        movie.setVoteAverage((Double) tmdb.get("vote_average"));
+
         // 📅 data
         String date = (String) tmdb.get("release_date");
         if (date != null && !date.isEmpty()) {
@@ -104,20 +106,53 @@ public class TmdbService {
         // 🎬 cast (top 5)
         Map<String, Object> credits = (Map<String, Object>) tmdb.get("credits");
         if (credits != null) {
-            List<Map<String, Object>> cast = (List<Map<String, Object>>) credits.get("cast");
+            List<Person> people = new ArrayList<>();
 
-            List<Person> people = cast.stream()
-                    .limit(5)
-                    .map(c -> ((String) c.get("name")).toLowerCase().replace(" ", "_"))
-                    .map(name ->
-                            personRepository.findByName(name)
+            // 🎭 CAST (top 5 aktorów)
+            List<Map<String, Object>> cast =
+                    (List<Map<String, Object>>) credits.get("cast");
+
+            if (cast != null) {
+                people.addAll(
+                        cast.stream()
+                                .limit(5)
+                                .map(c -> ((String) c.get("name"))
+                                        .toLowerCase()
+                                        .replace(" ", "_"))
+                                .map(name ->
+                                        personRepository.findByName(name)
+                                                .orElseGet(() -> {
+                                                    Person p = new Person();
+                                                    p.setName(name);
+                                                    return personRepository.save(p);
+                                                })
+                                )
+                                .toList()
+                );
+            }
+
+            // 🎬 DIRECTOR (NOWE - DODANE)
+            List<Map<String, Object>> crew =
+                    (List<Map<String, Object>>) credits.get("crew");
+
+            if (crew != null) {
+                crew.stream()
+                        .filter(c -> "Director".equals(c.get("job")))
+                        .map(c -> ((String) c.get("name"))
+                                .toLowerCase()
+                                .replace(" ", "_"))
+                        .forEach(name -> {
+
+                            Person director = personRepository.findByName(name)
                                     .orElseGet(() -> {
                                         Person p = new Person();
                                         p.setName(name);
                                         return personRepository.save(p);
-                                    })
-                    )
-                    .toList();
+                                    });
+
+                            people.add(director);
+                        });
+            }
 
             movie.setPeople(people);
         }

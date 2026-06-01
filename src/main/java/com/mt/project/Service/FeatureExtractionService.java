@@ -18,56 +18,43 @@ public class FeatureExtractionService {
     private POSTaggerME posTagger;
 
     public List<String> extractFeatures(Movie movie) {
-        List<String> tokens = new ArrayList<>();
 
-        // genres
-//        for (String genre : movie.getGenres()) {
-//            tokens.add(genre.toLowerCase());
-//        }
+        List<String> features = new ArrayList<>();
 
-        // ===== KEYWORDS  =====
-//        if (movie.getKeywords() != null) {
-//            for (String kw : movie.getKeywords()) {
-//                    tokens.add(kw.toLowerCase().replace(" ", "_"));
-//            }
-//        }
-
-        // peope cast+director
-//        if (movie.getPeople() != null) {
-//            for (String actor : movie.getPeople()) {
-//                tokens.add(actor.toLowerCase().replace(" ", "_"));
-//            }
-//        }
-
-        // ===== OVERVIEW + NLP =====
-        if (movie.getOverview() != null) {
-
-            SimpleTokenizer tokenizer = SimpleTokenizer.INSTANCE;
-
-            String[] words = tokenizer.tokenize(
-                    movie.getOverview().toLowerCase()
-            );
-
-            String[] tags = posTagger.tag(words);
-
-            for (int i = 0; i < words.length; i++) {
-
-                String word = words[i];
-                String tag = tags[i];
-
-                // tylko rzeczowniki i przymiotniki
-                if (tag.startsWith("NN") || tag.startsWith("JJ")) {
-
-                    String clean = word.replaceAll("[^a-z]", "");
-
-                    if (clean.length() > 2) {
-                        tokens.add(clean);
-                    }
-                }
-            }
+        // overview
+        if(movie.getOverview() != null) {
+            features.add(movie.getOverview());
         }
 
-        return tokens;
+        // genres
+        if(movie.getGenres() != null) {
+            movie.getGenres().forEach(
+                    g -> features.add("genre_" + g.getName())
+            );
+        }
+
+        // keywords
+        if(movie.getKeywords() != null) {
+            movie.getKeywords().forEach(
+                    k -> features.add("keyword_" + k.getName())
+            );
+        }
+
+        // people
+        if(movie.getPeople() != null) {
+            movie.getPeople().forEach(
+                    p -> features.add("person_" + p.getName())
+            );
+        }
+
+        // year
+        if(movie.getRelease_date() != null) {
+            features.add(
+                    "year_" + movie.getRelease_date().getYear()
+            );
+        }
+
+        return features;
     }
 
 //    public List<String> extractFeaturesFromTmdb(Map<String, Object> movie) {
@@ -121,6 +108,7 @@ public class FeatureExtractionService {
 //
 //        return tokens;
 //    }
+
 
     public List<String> extractFeaturesFromTmdb(Map<String, Object> movie) {
 

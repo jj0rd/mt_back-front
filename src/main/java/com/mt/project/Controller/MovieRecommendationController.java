@@ -3,6 +3,7 @@ package com.mt.project.Controller;
 import com.mt.project.Dto.MovieDto;
 import com.mt.project.Dto.MovieRecommendationRequest;
 import com.mt.project.Model.Movie;
+import com.mt.project.Model.ProfileSource;
 import com.mt.project.Service.RecommendationService;
 import com.mt.project.Service.UserBasedLuceneRecommendationService;
 import org.springframework.http.ResponseEntity;
@@ -41,8 +42,12 @@ public class MovieRecommendationController {
     }
     // GET /api/recommendations/user/1
     @GetMapping("/luceneRecommend/{userId}")
-    public List<MovieDto> getRecommendations(@PathVariable Integer userId) {
-        return luceneRecommendationService.recommend(userId);
+    public List<MovieDto> getRecommendations(
+            @PathVariable Integer userId,
+            @RequestParam(defaultValue = "TMDB") ProfileSource source) {
+
+        // Przekazujemy wybrany source do metody biznesowej
+        return luceneRecommendationService.recommend(userId, source);
     }
     @GetMapping("/to-rate/{userId}")
     public ResponseEntity<MovieDto> getMovieToRate(@PathVariable Integer userId) {

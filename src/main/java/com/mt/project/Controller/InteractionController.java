@@ -76,7 +76,7 @@ public class InteractionController {
         return response;
     }
     @PutMapping("/update")
-    public UserMovieInteraction updateInteraction(@RequestBody InteractionRequest request) {
+    public InteractionResponse updateInteraction(@RequestBody InteractionRequest request) {
 
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow();
@@ -90,7 +90,17 @@ public class InteractionController {
 
         interaction.setRating(request.getRating());
 
-        return interactionRepository.save(interaction);
+        UserMovieInteraction savedInteraction =
+                interactionRepository.save(interaction);
+
+        // DTO odpowiedzi
+        InteractionResponse response = new InteractionResponse();
+
+        response.setMovieId(movie.getTmdbId());
+        response.setMovieTitle(movie.getTitle());
+        response.setRating(savedInteraction.getRating());
+
+        return response;
     }
     @GetMapping("/{userId}/ratings")
     public List<MovieDto> getUserRatings(

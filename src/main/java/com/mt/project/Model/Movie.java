@@ -40,6 +40,7 @@ public class Movie {
     private List<Person> people;
     private String poster_path;
     private LocalDate release_date;
+    private Double voteAverage;
 
     @OneToMany(mappedBy = "movie")
     private List<UserMovieInteraction> interactions;
@@ -47,6 +48,22 @@ public class Movie {
     // wektor cech
     //private Map<String, Double> vector = new HashMap<>();
 
+
+    public Double getVoteAverage() {
+        return voteAverage;
+    }
+
+    public void setVoteAverage(Double voteAverage) {
+        this.voteAverage = voteAverage;
+    }
+
+    public List<UserMovieInteraction> getInteractions() {
+        return interactions;
+    }
+
+    public void setInteractions(List<UserMovieInteraction> interactions) {
+        this.interactions = interactions;
+    }
 
     public Integer getTmdbId() {
         return tmdbId;
