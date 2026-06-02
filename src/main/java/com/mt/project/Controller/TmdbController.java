@@ -1,4 +1,4 @@
-package com.mt.project.controllerTest;
+package com.mt.project.Controller;
 
 import com.mt.project.Dto.MovieDiscoverRequest;
 import org.springframework.beans.factory.annotation.Value;

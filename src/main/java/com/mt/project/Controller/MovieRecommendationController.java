@@ -44,7 +44,7 @@ public class MovieRecommendationController {
     @GetMapping("/luceneRecommend/{userId}")
     public List<MovieDto> getRecommendations(
             @PathVariable Integer userId,
-            @RequestParam(defaultValue = "TMDB") ProfileSource source) {
+            @RequestParam(defaultValue = "TMDB") ProfileSource source) { //TMDB / DATABASE
 
         // Przekazujemy wybrany source do metody biznesowej
         return luceneRecommendationService.recommend(userId, source);

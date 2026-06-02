@@ -2,6 +2,7 @@ package com.mt.project.Controller;
 
 import com.mt.project.Dto.PersonSearchRequest;
 import com.mt.project.Dto.PersonSearchResponse;
+import com.mt.project.Service.PersonService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -26,48 +27,21 @@ public class PersonController {
 
     @Autowired
     private final RestTemplate restTemplate = new RestTemplate();
+    private final PersonService personService;
+
+    public PersonController(PersonService personService){
+        this.personService = personService;
+    }
 
     @PostMapping("/search")
     public ResponseEntity<?> searchPerson(@RequestBody PersonSearchRequest request) {
 
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(Collections.singletonMap("error", "Name cannot be empty"));
+        try {
+            return ResponseEntity.ok(personService.searchPerson(request.getName()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
         }
-
-        String encodedName = URLEncoder.encode(request.getName().trim(), StandardCharsets.UTF_8);
-
-        String url = tmdbApiUrl + "/search/person?api_key=" + tmdbApiKey +
-                "&query=" + encodedName;
-
-        Map<String, Object> result = restTemplate.getForObject(url, Map.class);
-
-        if (result == null || !result.containsKey("results")) {
-            return ResponseEntity.status(404)
-                    .body(Collections.singletonMap("error", "Person not found"));
-        }
-
-        List<Map<String, Object>> people = (List<Map<String, Object>>) result.get("results");
-
-        // dla uproszczenia zwracamy pierwszą osobę w wynikach
-        if (people.isEmpty()) {
-            return ResponseEntity.status(404)
-                    .body(Collections.singletonMap("error", "Person not found"));
-        }
-
-        Map<String, Object> person = people.get(0);
-
-        PersonSearchResponse response = new PersonSearchResponse();
-        response.setId((Integer) person.get("id"));
-        response.setName((String) person.get("name"));
-
-        List<String> knownFor = ((List<Map<String, Object>>) person.get("known_for"))
-                .stream()
-                .map(kf -> (String) kf.get("title"))
-                .toList();
-
-        response.setKnownFor(knownFor);
-
-        return ResponseEntity.ok(response);
     }
 }
