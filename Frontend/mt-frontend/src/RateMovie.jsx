@@ -72,7 +72,9 @@ export default function RateMovie() {
     setSaveError("");
 
     try {
-      const res = await fetch(`${API_BASE}/api/to-rate/${userId}`);
+      const res = await fetch(`${API_BASE}/api/to-rate/${userId}`, {
+        credentials: 'include',
+      });
       if (res.status === 204 || res.status === 404) {
         setLoadStatus("empty");
         return;
@@ -104,6 +106,7 @@ export default function RateMovie() {
       const res = await fetch(`${API_BASE}/interactions/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           userId:  userId,
           movieId: movie.id,

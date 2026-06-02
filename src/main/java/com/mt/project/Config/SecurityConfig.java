@@ -45,9 +45,10 @@ public class SecurityConfig {
                                 "/login",
                                 "/register",
                                 "/logout",
-                                "/api/**",
+                                "/api/tmdb/movies/search/**",
+                                "/api/discover/fuzzy",
                                 "/interactions/**",
-                                "/similar/**",
+                                "/api/similar/**",
                                 "/error"
                         ).permitAll()
                         .anyRequest().authenticated()

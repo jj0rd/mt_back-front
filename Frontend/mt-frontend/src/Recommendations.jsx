@@ -113,6 +113,7 @@ function Modal({ movie, onClose }) {
       const res = await fetch(endpoint, {
         method: movie.userRating ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ userId, movieId: movie.id, rating }),
       });
       if (!res.ok) {
@@ -229,7 +230,9 @@ function WatchedList({ userId, onMovieClick }) {
   useEffect(() => {
     const fetchWatched = async () => {
       try {
-        const res = await fetch(`${API_BASE}/interactions/${userId}/ratings`);
+        const res = await fetch(`${API_BASE}/interactions/${userId}/ratings`, {
+          credentials: 'include',
+        });
         if (!res.ok) throw new Error();
         const data = await res.json();
         setWatched(Array.isArray(data) ? data : []);
@@ -325,7 +328,9 @@ export default function Recommendations() {
     setErrorMsg("");
 
     try {
-      const res = await fetch(`${API_BASE}/api/luceneRecommend/${userId}`);
+      const res = await fetch(`${API_BASE}/api/luceneRecommend/${userId}`, {
+        credentials: 'include',
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || body.error || `HTTP ${res.status}`);
